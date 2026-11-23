@@ -5,9 +5,32 @@ import { polishChangeLabels } from "@/lib/ai-labels";
 import { newRunId, saveRun } from "@/lib/run-store";
 import type { ReviewRun } from "@/lib/review-types";
 import { assertSafePublicUrl } from "@/lib/ssrf";
+import { clientKeyFromRequest, takeToken } from "@/lib/rate-limit";
+
+const COMPARE_LIMIT = 8;
+const COMPARE_WINDOW_MS = 60_000;
 
 export async function POST(request: Request) {
-  let body: { baseUrl?: string; previewUrl?: string };
+  const retryAfter = takeToken(
+    `compare:${clientKeyFromRequest(request)}`,
+    COMPARE_LIMIT,
+    COMPARE_WINDOW_MS,
+  );
+  if (retryAfter != null) {
+    return NextResponse.json(
+      { error: `Too many compares. Try again in ${retryAfter}s.` },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfter) },
+      },
+    );
+  }
+
+  let body: {
+    baseUrl?: string;
+    previewUrl?: string;
+    polishLabels?: boolean;
+  };
   try {
     body = await request.json();
   } catch {
@@ -16,6 +39,7 @@ export async function POST(request: Request) {
 
   const baseUrl = body.baseUrl?.trim();
   const previewUrl = body.previewUrl?.trim();
+  const polishLabels = Boolean(body.polishLabels);
   if (!baseUrl || !previewUrl) {
     return NextResponse.json(
       { error: "baseUrl and previewUrl are required" },
@@ -47,7 +71,7 @@ export async function POST(request: Request) {
       { beforeUrl: basePage.finalUrl, afterUrl: previewPage.finalUrl },
     );
 
-    const changes = await polishChangeLabels(rawChanges);
+    const changes = await polishChangeLabels(rawChanges, polishLabels);
 
     const run: ReviewRun = {
       id: runId,

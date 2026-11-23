@@ -25,23 +25,29 @@ Localhost fetches are allowed only in development.
 ## How it works
 
 1. **Home** — submit base + preview URLs  
-2. **`POST /api/compare`** — SSRF-safe fetch, DOM diff, inject `data-diffy-id`, store the run  
+2. **`POST /api/compare`** — SSRF-safe fetch (manual redirects + DNS checks), DOM diff, sanitize + store the run (rate-limited)  
 3. **`/review/[runId]`** — timeline + before/after panel  
-4. **`GET /api/proxy`** — same-origin HTML of the after page so Diffy can scroll/highlight  
+4. **`GET /api/proxy`** — sanitized HTML of the after page in a **script-free sandboxed iframe**; the parent scrolls/highlights changes  
 
 Runs are kept in memory (~1 hour). They do not survive cold starts on Cloudflare Workers — compare again if a run 404s.
 
-Optional: set `OPENAI_API_KEY` to polish change labels. The DOM diff is always the source of truth.
+### Optional AI labels
+
+Check **Improve labels with AI** on the form to send truncated change text to OpenAI (`OPENAI_API_KEY`). Off by default; the DOM diff is always the source of truth.
 
 Works best on **SSR / static HTML**. Client-rendered shells with empty first HTML will often show no changes.
 
 ## Deploy to Cloudflare
 
+Diffy deploys to **Cloudflare Workers** via [`@opennextjs/cloudflare`](https://opennext.js.org/cloudflare).
+
 ```bash
 npm run deploy
 ```
 
-Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Pushing to `main` can also run [`.github/workflows/deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) when those secrets are set.
+Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+Pushing to `main` on GitHub runs [`.github/workflows/deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) when those values are set as repository Actions secrets.
 
 ## Stack
 

@@ -2,20 +2,22 @@ import type { ReviewChange } from "@/lib/review-types";
 
 /**
  * Optional polish of labels/descriptions. Never invents new changes.
- * No-ops when OPENAI_API_KEY is unset.
+ * Only runs when explicitly enabled by the caller AND OPENAI_API_KEY is set.
+ * Sends truncated change text to OpenAI — never call without user opt-in.
  */
 export async function polishChangeLabels(
   changes: ReviewChange[],
+  enabled: boolean,
 ): Promise<ReviewChange[]> {
   const key = process.env.OPENAI_API_KEY;
-  if (!key || changes.length === 0) return changes;
+  if (!enabled || !key || changes.length === 0) return changes;
 
   try {
     const payload = changes.map((c) => ({
       id: c.id,
       kind: c.kind,
-      before: c.before.text ?? c.before.imageSrc ?? "",
-      after: c.after.text ?? c.after.imageSrc ?? "",
+      before: String(c.before.text ?? c.before.imageSrc ?? "").slice(0, 200),
+      after: String(c.after.text ?? c.after.imageSrc ?? "").slice(0, 200),
     }));
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -32,7 +34,7 @@ export async function polishChangeLabels(
           {
             role: "system",
             content:
-              "You label marketing-site visual diffs. Return JSON {\"items\":[{\"id\",\"label\",\"description\",\"kind\"}]} where kind is copy|image|layout. Keep labels short (≤6 words). Do not invent ids.",
+              'You label marketing-site visual diffs. Return JSON {"items":[{"id","label","description","kind"}]} where kind is copy|image|layout. Keep labels short (≤6 words). Do not invent ids.',
           },
           {
             role: "user",

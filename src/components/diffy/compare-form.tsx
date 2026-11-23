@@ -9,6 +9,7 @@ export function CompareForm() {
   const router = useRouter();
   const [baseUrl, setBaseUrl] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
+  const [polishLabels, setPolishLabels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,7 +21,7 @@ export function CompareForm() {
       const res = await fetch("/api/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl, previewUrl }),
+        body: JSON.stringify({ baseUrl, previewUrl, polishLabels }),
       });
       const data = (await res.json()) as {
         runId?: string;
@@ -79,6 +80,19 @@ export function CompareForm() {
           />
         </label>
       </div>
+
+      <label className="flex items-start gap-2.5 text-sm text-[var(--diffy-muted)] cursor-pointer">
+        <input
+          type="checkbox"
+          checked={polishLabels}
+          onChange={(e) => setPolishLabels(e.target.checked)}
+          className="mt-1 size-4 rounded border-[var(--diffy-line)]"
+        />
+        <span>
+          Improve labels with AI. Sends change text to OpenAI when a server key
+          is configured. Off by default.
+        </span>
+      </label>
 
       {error && (
         <p
