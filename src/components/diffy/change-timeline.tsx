@@ -70,25 +70,25 @@ export function ChangeTimeline({
                 >
                   {index + 1}
                 </span>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm tracking-tight truncate">
+                <div className="min-w-0 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 font-medium text-sm tracking-tight line-clamp-2">
                       {change.label}
                     </div>
-                    <p className="text-xs text-[var(--diffy-muted)] mt-0.5 line-clamp-2">
-                      {change.description}
-                    </p>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "shrink-0 gap-1 font-normal",
+                        meta.className,
+                      )}
+                    >
+                      <Icon className="size-3" />
+                      {meta.label}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "shrink-0 gap-1 font-normal",
-                      meta.className,
-                    )}
-                  >
-                    <Icon className="size-3" />
-                    {meta.label}
-                  </Badge>
+                  <p className="text-xs text-[var(--diffy-muted)] line-clamp-2">
+                    {change.description}
+                  </p>
                 </div>
               </button>
             </li>
