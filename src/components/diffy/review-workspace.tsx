@@ -57,7 +57,7 @@ export function ReviewWorkspace() {
   }, [go]);
 
   return (
-    <div className="min-h-dvh flex flex-col bg-[var(--diffy-bg)] text-[var(--diffy-ink)]">
+    <div className="h-dvh overflow-hidden flex flex-col bg-[var(--diffy-bg)] text-[var(--diffy-ink)]">
       <header className="shrink-0 border-b border-[var(--diffy-line)] bg-[var(--diffy-bg)]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-4 min-w-0">
@@ -107,15 +107,15 @@ export function ReviewWorkspace() {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col lg:flex-row gap-4 p-4 sm:p-6 lg:overflow-hidden">
-        <section className="flex-1 min-h-[48vh] lg:min-h-0 lg:h-[calc(100dvh-5.5rem)]">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col lg:flex-row gap-4 p-4 sm:p-6 overflow-y-auto lg:overflow-hidden">
+        <section className="flex-1 min-h-[48vh] lg:min-h-0">
           <SitePreview
-            className="h-full"
+            className="h-full min-h-[48vh] lg:min-h-0"
             activeSelector={activeChange?.selector ?? null}
           />
         </section>
 
-        <aside className="lg:w-[380px] xl:w-[420px] shrink-0 flex flex-col min-h-[52vh] lg:h-[calc(100dvh-5.5rem)] lg:min-h-0 rounded-xl border border-[var(--diffy-line)] bg-[var(--diffy-panel)] shadow-[0_18px_40px_-28px_rgba(20,40,30,0.4)] overflow-hidden">
+        <aside className="lg:w-[380px] xl:w-[420px] shrink-0 flex flex-col min-h-[52vh] lg:min-h-0 lg:h-full rounded-xl border border-[var(--diffy-line)] bg-[var(--diffy-panel)] shadow-[0_18px_40px_-28px_rgba(20,40,30,0.4)] overflow-hidden">
           <div className="shrink-0 px-4 pt-4 pb-3 border-b border-[var(--diffy-line)]">
             <div className="flex items-end justify-between gap-2">
               <div>
