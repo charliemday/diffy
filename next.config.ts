@@ -3,8 +3,8 @@ import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
-  cacheComponents: true,
-  partialPrefetching: true,
+  // OpenNext on Cloudflare does not fully support Cache Components yet
+  cacheComponents: false,
   turbopack: {
     rules: {
       "*.css": {
