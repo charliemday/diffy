@@ -1,20 +1,7 @@
-export type ChangeKind = "copy" | "image" | "layout";
+import type { ReviewChange } from "@/lib/review-types";
 
-export type ChangeContent = {
-  text?: string;
-  imageSrc?: string;
-  imageAlt?: string;
-};
-
-export type DemoChange = {
-  id: string;
-  kind: ChangeKind;
-  label: string;
-  description: string;
-  selector: string;
-  before: ChangeContent;
-  after: ChangeContent;
-};
+export type { ChangeKind, ChangeContent } from "@/lib/review-types";
+export type DemoChange = ReviewChange;
 
 export const DEMO_PR = {
   title: "Northline spring landing refresh",

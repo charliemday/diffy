@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CompareForm } from "@/components/diffy/compare-form";
 
 export default function HomePage() {
   return (
@@ -27,7 +28,7 @@ export default function HomePage() {
           Diffy
         </div>
         <Link
-          href="/review"
+          href="/review/demo"
           className="text-sm text-[var(--diffy-muted)] hover:text-[var(--diffy-ink)] transition-colors"
         >
           Open demo
@@ -43,24 +44,29 @@ export default function HomePage() {
             Diffy
           </h1>
           <p className="mt-6 max-w-xl text-lg sm:text-xl text-[var(--diffy-muted)] leading-relaxed">
-            See what actually changed on a marketing page — copy, images, and
-            new sections — then jump change by change with a before and after.
+            Paste a live page and a PR preview. Diffy finds copy, image, and
+            layout changes — then lets you step through them on the page.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Button
               asChild
               size="lg"
-              className="bg-[var(--diffy-accent)] text-white hover:bg-[var(--diffy-accent)]/90"
+              variant="outline"
+              className="border-[var(--diffy-line)] bg-white/70"
             >
-              <Link href="/review">
-                Open demo review
+              <Link href="/review/demo">
+                Try the Northline demo
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
             <p className="text-sm text-[var(--diffy-muted)]">
-              Use ↑ / ↓ to step through changes
+              Or compare two URLs below
             </p>
           </div>
+        </div>
+
+        <div className="mt-14 sm:mt-16 max-w-3xl animate-in fade-in duration-1000 delay-100 fill-mode-both">
+          <CompareForm />
         </div>
 
         <div className="mt-16 sm:mt-20 grid lg:grid-cols-[1.2fr_0.8fr] gap-6 items-stretch animate-in fade-in duration-1000 delay-150 fill-mode-both">
@@ -70,7 +76,7 @@ export default function HomePage() {
               <span className="size-2.5 rounded-full bg-[#e6c98a]" />
               <span className="size-2.5 rounded-full bg-[#9dcca8]" />
               <span className="ml-2 text-xs text-[var(--diffy-muted)] font-mono">
-                northline.co · after
+                preview · after
               </span>
             </div>
             <div className="p-6 sm:p-8">
@@ -81,8 +87,8 @@ export default function HomePage() {
                 Pack light. Stay out longer.
               </h2>
               <p className="mt-3 text-[var(--diffy-muted)] max-w-md">
-                The site preview stays on the left. Diffy scrolls and rings the
-                active change so reviewers never lose the page context.
+                The proxied preview stays on the left. Diffy scrolls and rings
+                the active change so reviewers never lose page context.
               </p>
               <div className="mt-6 h-2 w-28 rounded-full bg-[var(--diffy-marker)] animate-pulse" />
             </div>

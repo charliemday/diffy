@@ -1,8 +1,8 @@
 # Diffy
 
-Visual PR review for marketing websites. Diffy shows the page on the left and a timeline of copy, image, and layout changes on the right. Step with ↑ / ↓ to jump to each change and compare before and after.
+Visual PR review for marketing websites. Paste a **base URL** (live page) and a **preview URL** (PR deploy). Diffy fetches both, diffs the HTML, and opens a review with the page on the left and a timeline of copy, image, and layout changes on the right. Step with ↑ / ↓ to jump to each change.
 
-This repo ships a **demo-first** experience with a sample Northline landing page refresh — no live URL fetching yet.
+A hardcoded Northline demo still lives at `/review/demo` for offline walkthroughs.
 
 ## Run locally
 
@@ -11,27 +11,38 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3456](http://localhost:3456), then **Open demo review**.
+Open [http://localhost:3456](http://localhost:3456).
 
-## How to use the demo
+### Compare two fixture pages
 
-1. Open `/review`
-2. Use **↑ / ↓** (or **k / j**) to move through changes
-3. The site preview scrolls to and highlights the active change
-4. The panel under the timeline shows before → after for that change
+With the dev server running:
+
+- Base: `http://127.0.0.1:3456/fixtures/base.html`
+- Preview: `http://127.0.0.1:3456/fixtures/preview.html`
+
+Localhost fetches are allowed only in development.
+
+## How it works
+
+1. **Home** — submit base + preview URLs  
+2. **`POST /api/compare`** — SSRF-safe fetch, DOM diff, inject `data-diffy-id`, store the run  
+3. **`/review/[runId]`** — timeline + before/after panel  
+4. **`GET /api/proxy`** — same-origin HTML of the after page so Diffy can scroll/highlight  
+
+Runs are kept in memory (~1 hour). They do not survive cold starts on Cloudflare Workers — compare again if a run 404s.
+
+Optional: set `OPENAI_API_KEY` to polish change labels. The DOM diff is always the source of truth.
+
+Works best on **SSR / static HTML**. Client-rendered shells with empty first HTML will often show no changes.
 
 ## Deploy to Cloudflare
-
-Diffy deploys to **Cloudflare Workers** via [`@opennextjs/cloudflare`](https://opennext.js.org/cloudflare).
 
 ```bash
 npm run deploy
 ```
 
-Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the environment (Workers Edit permission is enough for deploy).
-
-Pushing to `main` also runs [`.github/workflows/deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) when those values are set as GitHub Actions secrets.
+Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Pushing to `main` can also run [`.github/workflows/deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) when those secrets are set.
 
 ## Stack
 
-Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui, OpenNext on Cloudflare Workers.
+Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui, `node-html-parser`, OpenNext on Cloudflare Workers.

@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-import type { DemoChange } from "@/data/demo";
+import type { ReviewChange } from "@/lib/review-types";
 import { cn } from "@/lib/utils";
 
 function Panel({
@@ -38,7 +37,25 @@ function Panel({
   );
 }
 
-export function BeforeAfter({ change }: { change: DemoChange | null }) {
+function ContentImage({
+  src,
+  alt,
+}: {
+  src: string;
+  alt: string;
+}) {
+  return (
+    // External compare URLs are arbitrary hosts — use img, not next/image
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover"
+    />
+  );
+}
+
+export function BeforeAfter({ change }: { change: ReviewChange | null }) {
   if (!change) {
     return (
       <div className="rounded-lg border border-dashed border-[var(--diffy-line)] px-4 py-6 text-center text-sm text-[var(--diffy-muted)]">
@@ -69,13 +86,9 @@ export function BeforeAfter({ change }: { change: DemoChange | null }) {
         <Panel label="Before" tone="before">
           {showImages && change.before.imageSrc ? (
             <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-black/5">
-              <Image
+              <ContentImage
                 src={change.before.imageSrc}
                 alt={change.before.imageAlt ?? "Before"}
-                fill
-                className="object-cover"
-                sizes="160px"
-                unoptimized
               />
             </div>
           ) : (
@@ -88,13 +101,9 @@ export function BeforeAfter({ change }: { change: DemoChange | null }) {
         <Panel label="After" tone="after">
           {showImages && change.after.imageSrc ? (
             <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-black/5">
-              <Image
+              <ContentImage
                 src={change.after.imageSrc}
                 alt={change.after.imageAlt ?? "After"}
-                fill
-                className="object-cover"
-                sizes="160px"
-                unoptimized
               />
             </div>
           ) : (

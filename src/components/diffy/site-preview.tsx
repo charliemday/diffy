@@ -7,13 +7,21 @@ import { cn } from "@/lib/utils";
 export function SitePreview({
   activeSelector,
   className,
+  mode = "demo",
+  runId,
+  pageLabel,
 }: {
   activeSelector: string | null;
   className?: string;
+  mode?: "demo" | "iframe";
+  runId?: string;
+  pageLabel?: string;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
+    if (mode !== "demo") return;
     if (!activeSelector || !scrollerRef.current) return;
     const root = scrollerRef.current;
     const el = root.querySelector(
@@ -27,7 +35,20 @@ export function SitePreview({
       elRect.top - rootRect.top + root.scrollTop - root.clientHeight * 0.28;
 
     root.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
-  }, [activeSelector]);
+  }, [activeSelector, mode]);
+
+  useEffect(() => {
+    if (mode !== "iframe") return;
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage(
+      { type: "diffy:focus", selector: activeSelector },
+      "*",
+    );
+  }, [activeSelector, mode]);
+
+  const barLabel =
+    pageLabel ?? (mode === "demo" ? "northline.co /" : "preview");
 
   return (
     <div
@@ -41,15 +62,30 @@ export function SitePreview({
         <span className="size-2.5 rounded-full bg-[#e6c98a]" />
         <span className="size-2.5 rounded-full bg-[#9dcca8]" />
         <div className="ml-2 flex-1 truncate rounded-md bg-white/80 px-3 py-1 text-[11px] text-[var(--diffy-muted)] font-mono">
-          northline.co /
+          {barLabel}
         </div>
         <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--diffy-muted)]">
           After
         </span>
       </div>
-      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto">
-        <NorthlinePage version="after" activeSelector={activeSelector} />
-      </div>
+      {mode === "iframe" && runId ? (
+        <iframe
+          ref={iframeRef}
+          title="Diffy site preview"
+          src={`/api/proxy?runId=${encodeURIComponent(runId)}&side=after`}
+          className="min-h-0 flex-1 w-full border-0 bg-white"
+          onLoad={() => {
+            iframeRef.current?.contentWindow?.postMessage(
+              { type: "diffy:focus", selector: activeSelector },
+              "*",
+            );
+          }}
+        />
+      ) : (
+        <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto">
+          <NorthlinePage version="after" activeSelector={activeSelector} />
+        </div>
+      )}
     </div>
   );
 }

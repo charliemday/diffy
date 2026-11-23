@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageIcon, LayoutTemplate, Type } from "lucide-react";
-import type { ChangeKind, DemoChange } from "@/data/demo";
+import type { ChangeKind, ReviewChange } from "@/lib/review-types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -32,7 +32,7 @@ export function ChangeTimeline({
   activeId,
   onSelect,
 }: {
-  changes: DemoChange[];
+  changes: ReviewChange[];
   activeId: string | null;
   onSelect: (id: string) => void;
 }) {
