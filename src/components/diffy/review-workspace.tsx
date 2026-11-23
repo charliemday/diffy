@@ -107,13 +107,16 @@ export function ReviewWorkspace() {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col lg:flex-row gap-4 p-4 sm:p-6">
-        <section className="flex-1 min-h-[48vh] lg:min-h-0">
-          <SitePreview activeSelector={activeChange?.selector ?? null} />
+      <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col lg:flex-row gap-4 p-4 sm:p-6 lg:overflow-hidden">
+        <section className="flex-1 min-h-[48vh] lg:min-h-0 lg:h-[calc(100dvh-5.5rem)]">
+          <SitePreview
+            className="h-full"
+            activeSelector={activeChange?.selector ?? null}
+          />
         </section>
 
-        <aside className="lg:w-[380px] xl:w-[420px] shrink-0 flex flex-col min-h-[52vh] lg:min-h-0 rounded-xl border border-[var(--diffy-line)] bg-[var(--diffy-panel)] shadow-[0_18px_40px_-28px_rgba(20,40,30,0.4)] overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b border-[var(--diffy-line)]">
+        <aside className="lg:w-[380px] xl:w-[420px] shrink-0 flex flex-col min-h-[52vh] lg:h-[calc(100dvh-5.5rem)] lg:min-h-0 rounded-xl border border-[var(--diffy-line)] bg-[var(--diffy-panel)] shadow-[0_18px_40px_-28px_rgba(20,40,30,0.4)] overflow-hidden">
+          <div className="shrink-0 px-4 pt-4 pb-3 border-b border-[var(--diffy-line)]">
             <div className="flex items-end justify-between gap-2">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--diffy-muted)]">
@@ -129,7 +132,7 @@ export function ReviewWorkspace() {
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 px-2 py-2">
+          <div className="flex-1 min-h-[140px] px-2 py-2 overflow-hidden">
             <ChangeTimeline
               changes={DEMO_CHANGES}
               activeId={activeId}
@@ -137,7 +140,7 @@ export function ReviewWorkspace() {
             />
           </div>
 
-          <div className="border-t border-[var(--diffy-line)] bg-white/50 px-4 py-4">
+          <div className="shrink-0 max-h-[42%] overflow-y-auto border-t border-[var(--diffy-line)] bg-white/50 px-4 py-3">
             <BeforeAfter change={activeChange} />
           </div>
         </aside>
