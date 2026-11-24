@@ -1,7 +1,14 @@
 import { parse, type HTMLElement } from "node-html-parser";
 import type { ReviewChange } from "@/lib/review-types";
+import {
+  collapseWhitespace,
+  isTrivialImageChange,
+  isTrivialTextChange,
+  meaningfulText,
+} from "@/lib/meaningful-text";
 
 const MAX_CHANGES = 25;
+const MIN_LAYOUT_TEXT = 12;
 const SKIP_TAGS = new Set([
   "script",
   "style",
@@ -28,10 +35,6 @@ type ImgSnap = {
   alt: string;
   el: HTMLElement;
 };
-
-function normalizeText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
 
 function nthOfTypePath(el: HTMLElement): string {
   const parts: string[] = [];
@@ -86,7 +89,7 @@ function collectTextSnaps(root: HTMLElement): TextSnap[] {
     const kids = el.childNodes.filter((n) => n.nodeType === 1) as HTMLElement[];
 
     if (!isRoot && !SKIP_TAGS.has(tag)) {
-      const ownText = normalizeText(
+      const ownText = collapseWhitespace(
         el.childNodes
           .filter((n) => n.nodeType === 3)
           .map((n) => n.text)
@@ -94,7 +97,7 @@ function collectTextSnaps(root: HTMLElement): TextSnap[] {
       );
 
       if (ownText && (texty.has(tag) || kids.length === 0)) {
-        const full = normalizeText(el.text);
+        const full = collapseWhitespace(el.text);
         if (full && full.length <= 400) {
           out.push({
             path: nthOfTypePath(el),
@@ -147,6 +150,10 @@ function labelForCopy(tag: string, text: string): string {
   return `${base}: “${truncate(text, 40)}”`;
 }
 
+function isAncestorPath(ancestor: string, descendant: string): boolean {
+  return descendant.startsWith(`${ancestor}>`);
+}
+
 export type DiffResult = {
   changes: ReviewChange[];
   afterHtml: string;
@@ -163,8 +170,9 @@ function absolutizeUrl(value: string, pageUrl?: string): string {
 }
 
 /**
- * Deterministic DOM diff. Mutates the after document by setting data-diffy-id
- * on matched elements, then serializes HTML for the proxy.
+ * Deterministic DOM diff focused on meaningful marketing visuals:
+ * copy wording, new UI blocks, and image asset changes.
+ * Mutates the after document by setting data-diffy-id on matched elements.
  */
 export function diffDocuments(
   beforeHtml: string,
@@ -192,16 +200,33 @@ export function diffDocuments(
 
   const changes: ReviewChange[] = [];
   const usedAfterEls = new Set<HTMLElement>();
+  const copyPaths: string[] = [];
 
-  // Path-matched text changes
+  // Path-matched text changes — skip formatting-only / entity-only churn
+  const pendingCopy: Array<{
+    path: string;
+    before: TextSnap;
+    after: TextSnap;
+  }> = [];
+
   for (const [path, after] of afterByPath) {
-    if (changes.length >= MAX_CHANGES) break;
     const before = beforeByPath.get(path);
     if (!before) continue;
     if (before.text === after.text) continue;
+    if (isTrivialTextChange(before.text, after.text)) continue;
+    pendingCopy.push({ path, before, after });
+  }
+
+  // Prefer deepest (child) copy hits over parent wrappers that only changed
+  // because a nested node changed.
+  pendingCopy.sort((a, b) => b.path.length - a.path.length);
+  for (const { path, before, after } of pendingCopy) {
+    if (changes.length >= MAX_CHANGES) break;
+    if (copyPaths.some((p) => isAncestorPath(path, p))) continue;
     const id = `chg_${changes.length + 1}`;
     after.el.setAttribute("data-diffy-id", id);
     usedAfterEls.add(after.el);
+    copyPaths.push(path);
     changes.push({
       id,
       kind: "copy",
@@ -213,14 +238,17 @@ export function diffDocuments(
     });
   }
 
-  // Added text blocks (layout) — match by text uniqueness against before
-  const beforeTextSet = new Set(beforeTexts.map((t) => t.text));
+  // Added text blocks (layout) — only truly new wording, not moved/reformatted
+  const beforeMeaningful = new Set(
+    beforeTexts.map((t) => meaningfulText(t.text)).filter(Boolean),
+  );
   for (const after of afterTexts) {
     if (changes.length >= MAX_CHANGES) break;
     if (usedAfterEls.has(after.el)) continue;
     if (beforeByPath.has(after.path)) continue;
-    if (beforeTextSet.has(after.text)) continue;
-    if (after.text.length < 8) continue;
+    const key = meaningfulText(after.text);
+    if (!key || beforeMeaningful.has(key)) continue;
+    if (after.text.length < MIN_LAYOUT_TEXT) continue;
     const id = `chg_${changes.length + 1}`;
     after.el.setAttribute("data-diffy-id", id);
     usedAfterEls.add(after.el);
@@ -235,7 +263,7 @@ export function diffDocuments(
     });
   }
 
-  // Image src changes
+  // Image src changes — ignore cache-busting query/hash-only differences
   const beforeImgs = collectImgs(beforeRoot);
   const afterImgs = collectImgs(afterRoot);
   const beforeImgByPath = new Map(beforeImgs.map((i) => [i.path, i]));
@@ -262,7 +290,7 @@ export function diffDocuments(
       });
       continue;
     }
-    if (before.src === after.src) continue;
+    if (isTrivialImageChange(before.src, after.src)) continue;
     const id = `chg_${changes.length + 1}`;
     after.el.setAttribute("data-diffy-id", id);
     usedAfterEls.add(after.el);

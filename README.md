@@ -33,7 +33,7 @@ Runs are kept in memory and also written to the Workers Cache API (~1 hour) so `
 
 ### PR companion (optional)
 
-Paste a **GitHub pull request URL** on the compare form. Diffy loads the PR’s changed files and **keeps only visual diffs that match** those files (image path / basename, or copy that appears in the PR patch). Randomized carousel slides and other dynamic HTML noise are hidden, with a count in the review sidebar.
+Paste a **GitHub pull request URL** on the compare form. Diffy loads the PR’s changed files and **keeps only copy / layout / image diffs tied to net content edits** in that PR (image path / basename, or wording that actually changed in the patch). Formatting-only hunks (prettier / lint) and randomized carousel noise are hidden, with a count in the review sidebar.
 
 Public PRs work without auth. Private repos use **GitHub OAuth** (Connect GitHub on the form). Create a GitHub OAuth App and set:
 
