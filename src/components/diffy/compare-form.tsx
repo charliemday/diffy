@@ -159,8 +159,9 @@ export function CompareForm() {
           className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
         />
         <span className="block text-xs text-[var(--diffy-muted)]">
-          When set, Diffy keeps only visual diffs that match files in the PR —
-          so random carousel / dynamic content is hidden.
+          When set, Diffy keeps only copy / layout / image changes that match
+          real content edits in the PR — formatting-only hunks and carousel
+          noise are hidden.
         </span>
       </label>
 
