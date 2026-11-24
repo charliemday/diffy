@@ -55,7 +55,7 @@ export default function HomePage() {
               className="border-[var(--diffy-line)] bg-white/70"
             >
               <Link href="/review/demo">
-                Try the Northline demo
+                Try Demo
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
