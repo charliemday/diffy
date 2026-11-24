@@ -9,6 +9,7 @@ export function CompareForm() {
   const router = useRouter();
   const [baseUrl, setBaseUrl] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
+  const [protectionBypass, setProtectionBypass] = useState("");
   const [polishLabels, setPolishLabels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,12 @@ export function CompareForm() {
       const res = await fetch("/api/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl, previewUrl, polishLabels }),
+        body: JSON.stringify({
+          baseUrl,
+          previewUrl,
+          polishLabels,
+          protectionBypass: protectionBypass.trim() || undefined,
+        }),
       });
       const data = (await res.json()) as {
         runId?: string;
@@ -73,13 +79,34 @@ export function CompareForm() {
           <input
             type="url"
             required
-            placeholder="https://pr-42.preview.example.com/pricing"
+            placeholder="https://my-app-git-branch.vercel.app/pricing"
             value={previewUrl}
             onChange={(e) => setPreviewUrl(e.target.value)}
             className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
           />
         </label>
       </div>
+
+      <label className="block space-y-1.5">
+        <span className="text-xs font-medium text-[var(--diffy-ink)]">
+          Vercel protection bypass{" "}
+          <span className="font-normal text-[var(--diffy-muted)]">
+            (optional)
+          </span>
+        </span>
+        <input
+          type="password"
+          autoComplete="off"
+          placeholder="Protection Bypass for Automation secret"
+          value={protectionBypass}
+          onChange={(e) => setProtectionBypass(e.target.value)}
+          className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm font-mono outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
+        />
+        <span className="block text-xs text-[var(--diffy-muted)]">
+          From Vercel → Project → Settings → Deployment Protection. Sent only
+          on Diffy’s server fetch; not stored in the browser after compare.
+        </span>
+      </label>
 
       <label className="flex items-start gap-2.5 text-sm text-[var(--diffy-muted)] cursor-pointer">
         <input

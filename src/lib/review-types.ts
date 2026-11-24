@@ -30,6 +30,11 @@ export type ReviewRun = {
   /** Stored for same-origin proxy; not always sent to the client */
   beforeHtml?: string;
   afterHtml?: string;
+  /** Vercel Protection Bypass — server-only, never sent to the client */
+  protectionBypass?: string;
 };
 
-export type ReviewRunPublic = Omit<ReviewRun, "beforeHtml" | "afterHtml">;
+export type ReviewRunPublic = Omit<
+  ReviewRun,
+  "beforeHtml" | "afterHtml" | "protectionBypass"
+>;

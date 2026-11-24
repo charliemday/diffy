@@ -3,12 +3,39 @@ import { diffDocuments } from "@/lib/dom-diff";
 import { fetchPageHtml } from "@/lib/fetch-page";
 import { polishChangeLabels } from "@/lib/ai-labels";
 import { newRunId, saveRun } from "@/lib/run-store";
-import type { ReviewRun } from "@/lib/review-types";
+import type { ReviewChange, ReviewRun } from "@/lib/review-types";
 import { assertSafePublicUrl } from "@/lib/ssrf";
 import { clientKeyFromRequest, takeToken } from "@/lib/rate-limit";
+import {
+  normalizeProtectionBypass,
+  toDiffyAssetUrl,
+} from "@/lib/vercel-bypass";
 
 const COMPARE_LIMIT = 8;
 const COMPARE_WINDOW_MS = 60_000;
+
+function rewriteChangeAssets(
+  changes: ReviewChange[],
+  runId: string,
+  beforeUrl: string,
+  afterUrl: string,
+): ReviewChange[] {
+  return changes.map((c) => ({
+    ...c,
+    before: {
+      ...c.before,
+      imageSrc: c.before.imageSrc
+        ? toDiffyAssetUrl(c.before.imageSrc, runId, beforeUrl)
+        : c.before.imageSrc,
+    },
+    after: {
+      ...c.after,
+      imageSrc: c.after.imageSrc
+        ? toDiffyAssetUrl(c.after.imageSrc, runId, afterUrl)
+        : c.after.imageSrc,
+    },
+  }));
+}
 
 export async function POST(request: Request) {
   const retryAfter = takeToken(
@@ -30,6 +57,7 @@ export async function POST(request: Request) {
     baseUrl?: string;
     previewUrl?: string;
     polishLabels?: boolean;
+    protectionBypass?: string;
   };
   try {
     body = await request.json();
@@ -40,6 +68,17 @@ export async function POST(request: Request) {
   const baseUrl = body.baseUrl?.trim();
   const previewUrl = body.previewUrl?.trim();
   const polishLabels = Boolean(body.polishLabels);
+
+  let protectionBypass: string | undefined;
+  try {
+    protectionBypass = normalizeProtectionBypass(body.protectionBypass);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Invalid bypass secret" },
+      { status: 400 },
+    );
+  }
+
   if (!baseUrl || !previewUrl) {
     return NextResponse.json(
       { error: "baseUrl and previewUrl are required" },
@@ -58,11 +97,12 @@ export async function POST(request: Request) {
   }
 
   const runId = newRunId();
+  const fetchOpts = { protectionBypass };
 
   try {
     const [basePage, previewPage] = await Promise.all([
-      fetchPageHtml(baseUrl),
-      fetchPageHtml(previewUrl),
+      fetchPageHtml(baseUrl, fetchOpts),
+      fetchPageHtml(previewUrl, fetchOpts),
     ]);
 
     const { changes: rawChanges, afterHtml, pageTitle } = diffDocuments(
@@ -71,7 +111,13 @@ export async function POST(request: Request) {
       { beforeUrl: basePage.finalUrl, afterUrl: previewPage.finalUrl },
     );
 
-    const changes = await polishChangeLabels(rawChanges, polishLabels);
+    const polished = await polishChangeLabels(rawChanges, polishLabels);
+    const changes = rewriteChangeAssets(
+      polished,
+      runId,
+      basePage.finalUrl,
+      previewPage.finalUrl,
+    );
 
     const run: ReviewRun = {
       id: runId,
@@ -84,6 +130,7 @@ export async function POST(request: Request) {
       status: "ready",
       beforeHtml: basePage.html,
       afterHtml,
+      protectionBypass,
     };
 
     saveRun(run);

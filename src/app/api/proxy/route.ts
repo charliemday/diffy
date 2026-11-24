@@ -35,7 +35,11 @@ export async function GET(request: Request) {
     );
   }
 
-  const prepared = prepareProxiedHtml(html, pageUrl);
+  const prepared = prepareProxiedHtml(html, pageUrl, {
+    runId: run.id,
+    // Always proxy same-host assets so Vercel bypass stays server-side
+    useAssetProxy: true,
+  });
   return new NextResponse(prepared, {
     status: 200,
     headers: proxyResponseHeaders(),

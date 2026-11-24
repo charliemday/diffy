@@ -1,4 +1,5 @@
 import { parse, type HTMLElement } from "node-html-parser";
+import { toDiffyAssetUrl } from "@/lib/vercel-bypass";
 
 const STRIP_TAGS = new Set([
   "script",
@@ -10,7 +11,6 @@ const STRIP_TAGS = new Set([
   "base",
 ]);
 
-// Keep stylesheet / icon links only
 const KEEP_LINK_REL = new Set(["stylesheet", "preload", "icon", "shortcut icon"]);
 const KEEP_META_NAME = new Set(["viewport", "charset"]);
 
@@ -23,7 +23,7 @@ function absolutize(attrValue: string, base: URL): string | null {
     lower.startsWith("vbscript:") ||
     lower.startsWith("data:text/html")
   ) {
-    return null; // drop dangerous URLs
+    return null;
   }
   if (
     v.startsWith("data:") ||
@@ -41,6 +41,26 @@ function absolutize(attrValue: string, base: URL): string | null {
   }
 }
 
+function maybeProxyAsset(
+  abs: string,
+  pageUrl: string,
+  runId: string | undefined,
+  useAssetProxy: boolean,
+): string {
+  if (!useAssetProxy || !runId) return abs;
+  if (
+    abs.startsWith("data:") ||
+    abs.startsWith("blob:") ||
+    abs.startsWith("mailto:") ||
+    abs.startsWith("tel:") ||
+    abs.startsWith("#") ||
+    abs.startsWith("/api/asset?")
+  ) {
+    return abs;
+  }
+  return toDiffyAssetUrl(abs, runId, pageUrl);
+}
+
 const URL_ATTRS = [
   "href",
   "src",
@@ -53,7 +73,13 @@ const URL_ATTRS = [
   "xlink:href",
 ] as const;
 
-function rewriteSrcset(value: string, base: URL): string {
+function rewriteSrcset(
+  value: string,
+  base: URL,
+  pageUrl: string,
+  runId: string | undefined,
+  useAssetProxy: boolean,
+): string {
   return value
     .split(",")
     .map((part) => {
@@ -64,7 +90,8 @@ function rewriteSrcset(value: string, base: URL): string {
       const rest = bits.slice(1).join(" ");
       const abs = absolutize(url, base);
       if (abs == null) return "";
-      return rest ? `${abs} ${rest}` : abs;
+      const next = maybeProxyAsset(abs, pageUrl, runId, useAssetProxy);
+      return rest ? `${next} ${rest}` : next;
     })
     .filter(Boolean)
     .join(", ");
@@ -79,13 +106,23 @@ function stripEventHandlers(el: HTMLElement) {
   }
 }
 
+export type PrepareProxyOptions = {
+  runId?: string;
+  /** Route same-host assets through /api/asset (keeps Vercel bypass server-side) */
+  useAssetProxy?: boolean;
+};
+
 /**
- * Sanitize fetched HTML for same-origin embedding:
- * remove executable markup, neutralize javascript: URLs, absolutize assets.
+ * Sanitize fetched HTML for same-origin embedding.
  * Highlighting is done by the parent (sandboxed iframe has no scripts).
  */
-export function prepareProxiedHtml(html: string, pageUrl: string): string {
+export function prepareProxiedHtml(
+  html: string,
+  pageUrl: string,
+  opts: PrepareProxyOptions = {},
+): string {
   const base = new URL(pageUrl);
+  const useAssetProxy = Boolean(opts.useAssetProxy && opts.runId);
   const doc = parse(html, {
     comment: false,
     blockTextElements: { script: true, style: true, noscript: true },
@@ -119,8 +156,6 @@ export function prepareProxiedHtml(html: string, pageUrl: string): string {
     }
 
     stripEventHandlers(el);
-
-    // Remove dangerous form/control attrs
     el.removeAttribute("srcdoc");
     if (el.getAttribute("contenteditable")) {
       el.removeAttribute("contenteditable");
@@ -130,19 +165,29 @@ export function prepareProxiedHtml(html: string, pageUrl: string): string {
       const val = el.getAttribute(attr);
       if (!val) continue;
       if (attr === "srcset" || attr === "data-srcset") {
-        const next = rewriteSrcset(val, base);
+        const next = rewriteSrcset(
+          val,
+          base,
+          pageUrl,
+          opts.runId,
+          useAssetProxy,
+        );
         if (next) el.setAttribute(attr, next);
         else el.removeAttribute(attr);
       } else {
         const abs = absolutize(val, base);
         if (abs == null) el.removeAttribute(attr);
-        else el.setAttribute(attr, abs);
+        else {
+          el.setAttribute(
+            attr,
+            maybeProxyAsset(abs, pageUrl, opts.runId, useAssetProxy),
+          );
+        }
       }
     }
 
     const style = el.getAttribute("style");
     if (style) {
-      // Drop expression()/behavior and rewrite url()
       let cleaned = style
         .replace(/expression\s*\(/gi, "invalid(")
         .replace(/-moz-binding\s*:/gi, "invalid:")
@@ -151,16 +196,17 @@ export function prepareProxiedHtml(html: string, pageUrl: string): string {
         /url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi,
         (_m, _q, u) => {
           const abs = absolutize(u, base);
-          return abs ? `url("${abs}")` : "url(about:blank)";
+          if (!abs) return "url(about:blank)";
+          const next = maybeProxyAsset(abs, pageUrl, opts.runId, useAssetProxy);
+          return `url("${next}")`;
         },
       );
       el.setAttribute("style", cleaned);
     }
   }
 
-  // Inject a tiny non-script style hook for parent-applied .diffy-focus
   const styleTag =
-    "<style data-diffy-injected=\"1\">[data-diffy-id].diffy-focus{outline:3px solid #0f6b57!important;outline-offset:4px;box-shadow:0 0 0 8px rgba(15,107,87,0.18);border-radius:4px;}</style>";
+    '<style data-diffy-injected="1">[data-diffy-id].diffy-focus{outline:3px solid #0f6b57!important;outline-offset:4px;box-shadow:0 0 0 8px rgba(15,107,87,0.18);border-radius:4px;}</style>';
   const head = doc.querySelector("head");
   if (head) {
     head.insertAdjacentHTML("beforeend", styleTag);
@@ -178,13 +224,12 @@ export function proxyResponseHeaders(): HeadersInit {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
-    // No scripts; assets from original origins only via rewritten absolute URLs
     "Content-Security-Policy": [
       "default-src 'none'",
-      "img-src https: http: data: blob:",
-      "media-src https: http: data: blob:",
-      "font-src https: http: data:",
-      "style-src 'unsafe-inline' https: http:",
+      "img-src 'self' https: http: data: blob:",
+      "media-src 'self' https: http: data: blob:",
+      "font-src 'self' https: http: data:",
+      "style-src 'self' 'unsafe-inline' https: http:",
       "frame-ancestors 'self'",
       "base-uri 'none'",
       "form-action 'none'",

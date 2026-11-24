@@ -31,6 +31,12 @@ Localhost fetches are allowed only in development.
 
 Runs are kept in memory (~1 hour). They do not survive cold starts on Cloudflare Workers — compare again if a run 404s.
 
+### Vercel auth-gated previews
+
+If the preview uses **Deployment Protection**, paste the project’s **Protection Bypass for Automation** secret on the compare form. Diffy sends it as `x-vercel-protection-bypass` on server fetches and proxies same-host assets through `/api/asset` so the secret never appears in the iframe HTML.
+
+Create the secret in Vercel → Project → Settings → Deployment Protection.
+
 ### Optional AI labels
 
 Check **Improve labels with AI** on the form to send truncated change text to OpenAI (`OPENAI_API_KEY`). Off by default; the DOM diff is always the source of truth.
