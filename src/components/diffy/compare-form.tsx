@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, GitBranch, Loader2, LogOut } from "lucide-react";
+import { ArrowRight, GitBranch, Loader2, LogOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  clearCompareFormDraft,
+  getCompareFormServerSnapshot,
+  getCompareFormSnapshot,
+  isCompareFormDraftEmpty,
+  subscribeCompareFormDraft,
+  updateCompareFormDraft,
+} from "@/lib/compare-form-storage";
 
 type GhMe = {
   configured: boolean;
@@ -14,11 +22,13 @@ type GhMe = {
 
 export function CompareForm() {
   const router = useRouter();
-  const [baseUrl, setBaseUrl] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [protectionBypass, setProtectionBypass] = useState("");
-  const [prUrl, setPrUrl] = useState("");
-  const [polishLabels, setPolishLabels] = useState(false);
+  const draft = useSyncExternalStore(
+    subscribeCompareFormDraft,
+    getCompareFormSnapshot,
+    getCompareFormServerSnapshot,
+  );
+  const { baseUrl, previewUrl, prUrl, protectionBypass, polishLabels } = draft;
+  const hasInputs = !isCompareFormDraftEmpty(draft);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [gh, setGh] = useState<GhMe | null>(null);
@@ -106,13 +116,30 @@ export function CompareForm() {
       onSubmit={onSubmit}
       className="rounded-2xl border border-[var(--diffy-line)] bg-[var(--diffy-panel)]/90 backdrop-blur-sm p-5 sm:p-6 space-y-4 shadow-[0_20px_50px_-40px_rgba(20,40,30,0.45)]"
     >
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--diffy-muted)]">
-          Compare two URLs
-        </p>
-        <p className="mt-1 text-sm text-[var(--diffy-muted)]">
-          Base is the live page. Preview is the PR deploy of the same page.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--diffy-muted)]">
+            Compare two URLs
+          </p>
+          <p className="mt-1 text-sm text-[var(--diffy-muted)]">
+            Base is the live page. Preview is the PR deploy of the same page.
+          </p>
+        </div>
+        {hasInputs ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              clearCompareFormDraft();
+              setError(null);
+            }}
+            className="h-8 shrink-0 text-xs text-[var(--diffy-muted)] hover:text-[var(--diffy-ink)]"
+          >
+            <RotateCcw className="size-3.5" />
+            Clear
+          </Button>
+        ) : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -125,7 +152,7 @@ export function CompareForm() {
             required
             placeholder="https://example.com/pricing"
             value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
+            onChange={(e) => updateCompareFormDraft({ baseUrl: e.target.value })}
             className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
           />
         </label>
@@ -138,7 +165,9 @@ export function CompareForm() {
             required
             placeholder="https://my-app-git-branch.vercel.app/pricing"
             value={previewUrl}
-            onChange={(e) => setPreviewUrl(e.target.value)}
+            onChange={(e) =>
+              updateCompareFormDraft({ previewUrl: e.target.value })
+            }
             className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
           />
         </label>
@@ -155,7 +184,7 @@ export function CompareForm() {
           type="url"
           placeholder="https://github.com/owner/repo/pull/123"
           value={prUrl}
-          onChange={(e) => setPrUrl(e.target.value)}
+          onChange={(e) => updateCompareFormDraft({ prUrl: e.target.value })}
           className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
         />
         <span className="block text-xs text-[var(--diffy-muted)]">
@@ -224,12 +253,15 @@ export function CompareForm() {
           autoComplete="off"
           placeholder="Protection Bypass for Automation secret"
           value={protectionBypass}
-          onChange={(e) => setProtectionBypass(e.target.value)}
+          onChange={(e) =>
+            updateCompareFormDraft({ protectionBypass: e.target.value })
+          }
           className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm font-mono outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
         />
         <span className="block text-xs text-[var(--diffy-muted)]">
-          From Vercel → Project → Settings → Deployment Protection. Sent only
-          on Diffy’s server fetch; not stored in the browser after compare.
+          From Vercel → Project → Settings → Deployment Protection. Saved in
+          this browser’s local storage until you clear it; sent only on Diffy’s
+          server fetch.
         </span>
       </label>
 
@@ -237,7 +269,9 @@ export function CompareForm() {
         <input
           type="checkbox"
           checked={polishLabels}
-          onChange={(e) => setPolishLabels(e.target.checked)}
+          onChange={(e) =>
+            updateCompareFormDraft({ polishLabels: e.target.checked })
+          }
           className="mt-1 size-4 rounded border-[var(--diffy-line)]"
         />
         <span>
