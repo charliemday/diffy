@@ -12,6 +12,7 @@ import {
 } from "@/lib/vercel-bypass";
 import { fetchPullRequestInfo, parseGithubPrUrl } from "@/lib/github-pr";
 import { filterChangesToPullRequest } from "@/lib/pr-filter-changes";
+import { triageChangesWithLlm } from "@/lib/llm-diff-triage";
 import { readAccessTokenFromCookie } from "@/lib/github-oauth";
 
 const COMPARE_LIMIT = 8;
@@ -132,13 +133,29 @@ export async function POST(request: Request) {
       { beforeUrl: basePage.finalUrl, afterUrl: previewPage.finalUrl },
     );
 
-    const polished = await polishChangeLabels(rawChanges, polishLabels);
+    // Prefer LLM triage when OPENAI_API_KEY is configured so the model can
+    // inspect the PR diff + DOM candidates directly; fall back to heuristics.
+    const llmTriage = await triageChangesWithLlm(rawChanges, prInfo);
 
-    let changes = polished;
+    let changes: ReviewChange[];
+    let filteredOutCount = 0;
+
+    if (llmTriage) {
+      changes = llmTriage.changes;
+      filteredOutCount = llmTriage.filteredOutCount;
+    } else {
+      const polished = await polishChangeLabels(rawChanges, polishLabels);
+      if (prInfo) {
+        const filtered = filterChangesToPullRequest(polished, prInfo);
+        changes = filtered.changes;
+        filteredOutCount = filtered.filteredOutCount;
+      } else {
+        changes = polished;
+      }
+    }
+
     let pr: PrCompanion | undefined;
     if (prInfo) {
-      const filtered = filterChangesToPullRequest(polished, prInfo);
-      changes = filtered.changes;
       pr = {
         url: prInfo.url,
         owner: prInfo.owner,
@@ -154,7 +171,7 @@ export async function POST(request: Request) {
           deletions: f.deletions,
           isMedia: f.isMedia,
         })),
-        filteredOutCount: filtered.filteredOutCount,
+        filteredOutCount,
       };
     }
 

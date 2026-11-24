@@ -10,7 +10,7 @@ export type PrFilterResult = {
 
 const MEDIA_NAME_HINT = /\.(avif|bmp|gif|jpe?g|png|svg|webp|mp4|webm|mov|ico)$/i;
 /** Ignore ultra-short tokens that appear in every prettier churn hunk. */
-const MIN_DELTA_LEN = 6;
+const MIN_DELTA_LEN = 3;
 
 /**
  * Build multiset difference: values in `left` not cancelled by `right`.
