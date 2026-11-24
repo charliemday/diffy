@@ -7,21 +7,23 @@ export const GH_OAUTH_SCOPES = "read:user repo";
 const TOKEN_MAX_AGE_SEC = 60 * 60 * 24 * 7; // 7 days
 const STATE_MAX_AGE_SEC = 60 * 10;
 
+/** Strip whitespace and accidental markdown/shell quotes from secret values. */
+function cleanEnv(value: string | undefined): string {
+  return (value ?? "").trim().replace(/^[`'"]+|[`'"]+$/g, "").trim();
+}
+
 export function isGithubOAuthConfigured(): boolean {
-  return Boolean(
-    process.env.GITHUB_CLIENT_ID?.trim() &&
-      process.env.GITHUB_CLIENT_SECRET?.trim(),
-  );
+  return Boolean(cleanEnv(process.env.GITHUB_CLIENT_ID) && cleanEnv(process.env.GITHUB_CLIENT_SECRET));
 }
 
 export function githubClientId(): string {
-  const id = process.env.GITHUB_CLIENT_ID?.trim();
+  const id = cleanEnv(process.env.GITHUB_CLIENT_ID);
   if (!id) throw new Error("GITHUB_CLIENT_ID is not configured");
   return id;
 }
 
 export function githubClientSecret(): string {
-  const secret = process.env.GITHUB_CLIENT_SECRET?.trim();
+  const secret = cleanEnv(process.env.GITHUB_CLIENT_SECRET);
   if (!secret) throw new Error("GITHUB_CLIENT_SECRET is not configured");
   return secret;
 }
@@ -29,8 +31,8 @@ export function githubClientSecret(): string {
 function sealKey(): Buffer {
   // Prefer dedicated secret; fall back to client secret for single-env setups.
   const raw =
-    process.env.DIFFY_SESSION_SECRET?.trim() ||
-    process.env.GITHUB_CLIENT_SECRET?.trim() ||
+    cleanEnv(process.env.DIFFY_SESSION_SECRET) ||
+    cleanEnv(process.env.GITHUB_CLIENT_SECRET) ||
     "diffy-dev-only-session-secret";
   return createHmac("sha256", "diffy-cookie-key").update(raw).digest();
 }
