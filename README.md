@@ -24,12 +24,27 @@ Localhost fetches are allowed only in development.
 
 ## How it works
 
-1. **Home** — submit base + preview URLs  
-2. **`POST /api/compare`** — SSRF-safe fetch (manual redirects + DNS checks), DOM diff, sanitize + store the run (rate-limited)  
-3. **`/review/[runId]`** — timeline + before/after panel  
+1. **Home** — submit base + preview URLs (optional GitHub PR URL)  
+2. **`POST /api/compare`** — SSRF-safe fetch (manual redirects + DNS checks), DOM diff, optional PR file filter, sanitize + store the run (rate-limited)  
+3. **`/review/[runId]`** — timeline + before/after panel (+ PR companion when linked)  
 4. **`GET /api/proxy`** — sanitized HTML of the after page in a **script-free sandboxed iframe**; the parent scrolls/highlights changes  
 
 Runs are kept in memory and also written to the Workers Cache API (~1 hour) so `/api/proxy` and `/api/asset` still resolve across isolates. Compare again if a run eventually expires.
+
+### PR companion (optional)
+
+Paste a **GitHub pull request URL** on the compare form. Diffy loads the PR’s changed files and **keeps only visual diffs that match** those files (image path / basename, or copy that appears in the PR patch). Randomized carousel slides and other dynamic HTML noise are hidden, with a count in the review sidebar.
+
+Public PRs work without auth. Private repos use **GitHub OAuth** (Connect GitHub on the form). Create a GitHub OAuth App and set:
+
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- Optional: `DIFFY_SESSION_SECRET` (cookie sealing; falls back to the client secret)
+- Optional: `GITHUB_OAUTH_REDIRECT_URI` (defaults to `{origin}/api/auth/github/callback`)
+
+Callback URL example: `https://diffy.charliemday31.workers.dev/api/auth/github/callback`  
+Local: `http://localhost:3456/api/auth/github/callback`  
+Requested scopes: `read:user`, `repo`.
 
 ### Vercel auth-gated previews
 

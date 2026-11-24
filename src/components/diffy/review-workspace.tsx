@@ -7,6 +7,7 @@ import { DEMO_CHANGES, DEMO_PR } from "@/data/demo";
 import type { ReviewChange, ReviewRunPublic } from "@/lib/review-types";
 import { BeforeAfter } from "@/components/diffy/before-after";
 import { ChangeTimeline } from "@/components/diffy/change-timeline";
+import { PrCompanionPanel } from "@/components/diffy/pr-companion-panel";
 import { SitePreview } from "@/components/diffy/site-preview";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -20,12 +21,17 @@ export function ReviewWorkspace(props: Props) {
   const changes: ReviewChange[] = isDemo
     ? DEMO_CHANGES
     : props.run.changes;
+  const pr = isDemo ? null : props.run.pr;
   const title = isDemo
     ? DEMO_PR.title
-    : props.run.pageTitle || "URL compare";
+    : pr?.title || props.run.pageTitle || "URL compare";
   const subtitle = isDemo ? (
     <span className="truncate font-mono">
       {DEMO_PR.branch} ← {DEMO_PR.base}
+    </span>
+  ) : pr ? (
+    <span className="truncate font-mono text-[11px]">
+      {pr.headRef || `PR #${pr.number}`} ← {pr.baseRef || "base"}
     </span>
   ) : (
     <span className="truncate font-mono text-[11px]">
@@ -99,7 +105,7 @@ export function ReviewWorkspace(props: Props) {
             <div className="min-w-0 hidden sm:block">
               <div className="truncate text-sm font-medium">{title}</div>
               <div className="flex items-center gap-1.5 text-xs text-[var(--diffy-muted)]">
-                {isDemo ? (
+                {isDemo || pr ? (
                   <GitBranch className="size-3 shrink-0" />
                 ) : (
                   <Link2 className="size-3 shrink-0" />
@@ -167,8 +173,12 @@ export function ReviewWorkspace(props: Props) {
                 </p>
                 <p className="text-sm text-[var(--diffy-muted)] mt-0.5">
                   {empty
-                    ? "No visual changes detected"
-                    : `${changes.length} visual change${changes.length === 1 ? "" : "s"}`}
+                    ? pr
+                      ? "No PR-matched visual changes"
+                      : "No visual changes detected"
+                    : pr
+                      ? `${changes.length} in PR`
+                      : `${changes.length} visual change${changes.length === 1 ? "" : "s"}`}
                 </p>
               </div>
               <kbd className="hidden sm:inline-flex items-center gap-1 rounded-md border border-[var(--diffy-line)] bg-white px-2 py-1 text-[10px] text-[var(--diffy-muted)] font-mono">
@@ -180,9 +190,9 @@ export function ReviewWorkspace(props: Props) {
           <div className="flex-1 min-h-[140px] px-2 py-2 overflow-hidden">
             {empty ? (
               <div className="h-full flex items-center justify-center px-4 text-center text-sm text-[var(--diffy-muted)]">
-                The two pages look the same in Diffy’s HTML diff — or the
-                preview is a client-rendered shell with no content in the first
-                HTML response.
+                {pr
+                  ? "HTML diffs didn’t match any files in this pull request. Dynamic carousel content may have been filtered out — or the PR doesn’t touch this page’s copy/images."
+                  : "The two pages look the same in Diffy’s HTML diff — or the preview is a client-rendered shell with no content in the first HTML response."}
               </div>
             ) : (
               <ChangeTimeline
@@ -192,6 +202,8 @@ export function ReviewWorkspace(props: Props) {
               />
             )}
           </div>
+
+          {pr ? <PrCompanionPanel pr={pr} /> : null}
 
           <div className="shrink-0 max-h-[42%] overflow-y-auto border-t border-[var(--diffy-line)] bg-white/50 px-4 py-3">
             <BeforeAfter change={activeChange} />
