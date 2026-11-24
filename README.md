@@ -29,11 +29,11 @@ Localhost fetches are allowed only in development.
 3. **`/review/[runId]`** — timeline + before/after panel  
 4. **`GET /api/proxy`** — sanitized HTML of the after page in a **script-free sandboxed iframe**; the parent scrolls/highlights changes  
 
-Runs are kept in memory (~1 hour). They do not survive cold starts on Cloudflare Workers — compare again if a run 404s.
+Runs are kept in memory and also written to the Workers Cache API (~1 hour) so `/api/proxy` and `/api/asset` still resolve across isolates. Compare again if a run eventually expires.
 
 ### Vercel auth-gated previews
 
-If the preview uses **Deployment Protection**, paste the project’s **Protection Bypass for Automation** secret on the compare form. Diffy sends it as `x-vercel-protection-bypass` on server fetches and proxies same-host assets through `/api/asset` so the secret never appears in the iframe HTML.
+If the preview uses **Deployment Protection**, paste the project’s **Protection Bypass for Automation** secret on the compare form. Diffy sends it as `x-vercel-protection-bypass` on server fetches and proxies same-host assets through `/api/asset` so the secret never appears in the iframe HTML. Without a bypass secret, stylesheet and image URLs stay pointed at the origin so the browser loads them directly.
 
 Create the secret in Vercel → Project → Settings → Deployment Protection.
 

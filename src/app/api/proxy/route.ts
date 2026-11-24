@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "runId required" }, { status: 400 });
   }
 
-  const run = getRun(runId);
+  const run = await getRun(runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
@@ -37,8 +37,10 @@ export async function GET(request: Request) {
 
   const prepared = prepareProxiedHtml(html, pageUrl, {
     runId: run.id,
-    // Always proxy same-host assets so Vercel bypass stays server-side
-    useAssetProxy: true,
+    // Only when a bypass secret is stored — otherwise leave absolute asset
+    // URLs so stylesheets/fonts load from the origin (avoids Workers
+    // isolate miss on /api/asset).
+    useAssetProxy: Boolean(run.protectionBypass),
   });
   return new NextResponse(prepared, {
     status: 200,

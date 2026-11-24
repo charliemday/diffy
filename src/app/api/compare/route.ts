@@ -112,12 +112,18 @@ export async function POST(request: Request) {
     );
 
     const polished = await polishChangeLabels(rawChanges, polishLabels);
-    const changes = rewriteChangeAssets(
-      polished,
-      runId,
-      basePage.finalUrl,
-      previewPage.finalUrl,
-    );
+    // Only route timeline images through /api/asset when a Vercel bypass
+    // secret must stay server-side. Otherwise keep absolute origin URLs so
+    // the browser loads CSS/images directly (Workers isolates don't share
+    // the in-memory run map).
+    const changes = protectionBypass
+      ? rewriteChangeAssets(
+          polished,
+          runId,
+          basePage.finalUrl,
+          previewPage.finalUrl,
+        )
+      : polished;
 
     const run: ReviewRun = {
       id: runId,
@@ -133,7 +139,7 @@ export async function POST(request: Request) {
       protectionBypass,
     };
 
-    saveRun(run);
+    await saveRun(run);
 
     return NextResponse.json({
       runId: run.id,
@@ -153,7 +159,7 @@ export async function POST(request: Request) {
       status: "error",
       error: message,
     };
-    saveRun(failed);
+    await saveRun(failed);
 
     return NextResponse.json({ error: message, runId }, { status: 422 });
   }
