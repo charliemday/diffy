@@ -22,6 +22,7 @@ export async function GET(
     changes: run.changes,
     status: run.status,
     error: run.error,
+    pr: run.pr,
   };
 
   return NextResponse.json(publicRun);

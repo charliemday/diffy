@@ -3,13 +3,19 @@ import { diffDocuments } from "@/lib/dom-diff";
 import { fetchPageHtml } from "@/lib/fetch-page";
 import { polishChangeLabels } from "@/lib/ai-labels";
 import { newRunId, saveRun } from "@/lib/run-store";
-import type { ReviewChange, ReviewRun } from "@/lib/review-types";
+import type { PrCompanion, ReviewChange, ReviewRun } from "@/lib/review-types";
 import { assertSafePublicUrl } from "@/lib/ssrf";
 import { clientKeyFromRequest, takeToken } from "@/lib/rate-limit";
 import {
   normalizeProtectionBypass,
   toDiffyAssetUrl,
 } from "@/lib/vercel-bypass";
+import {
+  fetchPullRequestInfo,
+  normalizeGithubToken,
+  parseGithubPrUrl,
+} from "@/lib/github-pr";
+import { filterChangesToPullRequest } from "@/lib/pr-filter-changes";
 
 const COMPARE_LIMIT = 8;
 const COMPARE_WINDOW_MS = 60_000;
@@ -58,6 +64,8 @@ export async function POST(request: Request) {
     previewUrl?: string;
     polishLabels?: boolean;
     protectionBypass?: string;
+    prUrl?: string;
+    githubToken?: string;
   };
   try {
     body = await request.json();
@@ -68,13 +76,20 @@ export async function POST(request: Request) {
   const baseUrl = body.baseUrl?.trim();
   const previewUrl = body.previewUrl?.trim();
   const polishLabels = Boolean(body.polishLabels);
+  const prUrlRaw = body.prUrl?.trim();
 
   let protectionBypass: string | undefined;
+  let githubToken: string | undefined;
   try {
     protectionBypass = normalizeProtectionBypass(body.protectionBypass);
+    githubToken = normalizeGithubToken(body.githubToken);
+    if (prUrlRaw) parseGithubPrUrl(prUrlRaw);
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Invalid bypass secret" },
+      {
+        error:
+          err instanceof Error ? err.message : "Invalid compare options",
+      },
       { status: 400 },
     );
   }
@@ -100,9 +115,17 @@ export async function POST(request: Request) {
   const fetchOpts = { protectionBypass };
 
   try {
-    const [basePage, previewPage] = await Promise.all([
+    const pagePromise = Promise.all([
       fetchPageHtml(baseUrl, fetchOpts),
       fetchPageHtml(previewUrl, fetchOpts),
+    ]);
+    const prPromise = prUrlRaw
+      ? fetchPullRequestInfo(prUrlRaw, { token: githubToken })
+      : Promise.resolve(null);
+
+    const [[basePage, previewPage], prInfo] = await Promise.all([
+      pagePromise,
+      prPromise,
     ]);
 
     const { changes: rawChanges, afterHtml, pageTitle } = diffDocuments(
@@ -112,18 +135,43 @@ export async function POST(request: Request) {
     );
 
     const polished = await polishChangeLabels(rawChanges, polishLabels);
+
+    let changes = polished;
+    let pr: PrCompanion | undefined;
+    if (prInfo) {
+      const filtered = filterChangesToPullRequest(polished, prInfo);
+      changes = filtered.changes;
+      pr = {
+        url: prInfo.url,
+        owner: prInfo.owner,
+        repo: prInfo.repo,
+        number: prInfo.number,
+        title: prInfo.title,
+        headRef: prInfo.headRef,
+        baseRef: prInfo.baseRef,
+        files: prInfo.files.map((f) => ({
+          filename: f.filename,
+          status: f.status,
+          additions: f.additions,
+          deletions: f.deletions,
+          isMedia: f.isMedia,
+        })),
+        filteredOutCount: filtered.filteredOutCount,
+      };
+    }
+
     // Only route timeline images through /api/asset when a Vercel bypass
     // secret must stay server-side. Otherwise keep absolute origin URLs so
     // the browser loads CSS/images directly (Workers isolates don't share
     // the in-memory run map).
-    const changes = protectionBypass
-      ? rewriteChangeAssets(
-          polished,
-          runId,
-          basePage.finalUrl,
-          previewPage.finalUrl,
-        )
-      : polished;
+    if (protectionBypass) {
+      changes = rewriteChangeAssets(
+        changes,
+        runId,
+        basePage.finalUrl,
+        previewPage.finalUrl,
+      );
+    }
 
     const run: ReviewRun = {
       id: runId,
@@ -131,12 +179,13 @@ export async function POST(request: Request) {
       baseUrl: basePage.finalUrl,
       previewUrl: previewPage.finalUrl,
       pageUrl: previewPage.finalUrl,
-      pageTitle,
+      pageTitle: pr ? pr.title : pageTitle,
       changes,
       status: "ready",
       beforeHtml: basePage.html,
       afterHtml,
       protectionBypass,
+      pr,
     };
 
     await saveRun(run);
@@ -144,6 +193,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       runId: run.id,
       changeCount: changes.length,
+      filteredOutCount: pr?.filteredOutCount ?? 0,
     });
   } catch (err) {
     const message =

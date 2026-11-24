@@ -10,6 +10,8 @@ export function CompareForm() {
   const [baseUrl, setBaseUrl] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [protectionBypass, setProtectionBypass] = useState("");
+  const [prUrl, setPrUrl] = useState("");
+  const [githubToken, setGithubToken] = useState("");
   const [polishLabels, setPolishLabels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,8 @@ export function CompareForm() {
           previewUrl,
           polishLabels,
           protectionBypass: protectionBypass.trim() || undefined,
+          prUrl: prUrl.trim() || undefined,
+          githubToken: githubToken.trim() || undefined,
         }),
       });
       const data = (await res.json()) as {
@@ -86,6 +90,50 @@ export function CompareForm() {
           />
         </label>
       </div>
+
+      <label className="block space-y-1.5">
+        <span className="text-xs font-medium text-[var(--diffy-ink)]">
+          GitHub pull request{" "}
+          <span className="font-normal text-[var(--diffy-muted)]">
+            (optional)
+          </span>
+        </span>
+        <input
+          type="url"
+          placeholder="https://github.com/owner/repo/pull/123"
+          value={prUrl}
+          onChange={(e) => setPrUrl(e.target.value)}
+          className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
+        />
+        <span className="block text-xs text-[var(--diffy-muted)]">
+          When set, Diffy keeps only visual diffs that match files in the PR —
+          so random carousel / dynamic content is hidden.
+        </span>
+      </label>
+
+      {prUrl.trim() ? (
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium text-[var(--diffy-ink)]">
+            GitHub token{" "}
+            <span className="font-normal text-[var(--diffy-muted)]">
+              (optional, private repos)
+            </span>
+          </span>
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="ghp_… or github_pat_…"
+            value={githubToken}
+            onChange={(e) => setGithubToken(e.target.value)}
+            className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm font-mono outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
+          />
+          <span className="block text-xs text-[var(--diffy-muted)]">
+            Public PRs work without a token. For private repos, paste a
+            fine-grained or classic PAT with contents/PR read. Used only on the
+            server for this compare.
+          </span>
+        </label>
+      ) : null}
 
       <label className="block space-y-1.5">
         <span className="text-xs font-medium text-[var(--diffy-ink)]">
