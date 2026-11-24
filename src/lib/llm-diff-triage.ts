@@ -18,7 +18,7 @@ type TriageItem = {
 
 const MAX_PATCH_CHARS = 16_000;
 const MAX_FILE_PATCH_CHARS = 2_500;
-const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_MODEL = "gpt-5.6-luna";
 
 function cleanEnv(value: string | undefined): string {
   return (value ?? "").trim().replace(/^[`'"]+|[`'"]+$/g, "").trim();
@@ -105,7 +105,6 @@ export async function triageChangesWithLlm(
       },
       body: JSON.stringify({
         model,
-        temperature: 0.1,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
