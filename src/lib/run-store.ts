@@ -35,9 +35,14 @@ function prune(now = Date.now()) {
   }
 }
 
+/**
+ * Cache API key. Use the same http://cache.local/ convention OpenNext uses —
+ * arbitrary https hosts can fail to store on some Worker setups.
+ */
 function cacheKey(id: string): Request {
-  // Cache API requires an http(s) Request key.
-  return new Request(`https://diffy.internal/runs/${encodeURIComponent(id)}`);
+  return new Request(
+    `http://cache.local/diffy-runs/${encodeURIComponent(id)}`,
+  );
 }
 
 async function openRunCache(): Promise<Cache | null> {
@@ -53,15 +58,22 @@ async function persistRun(entry: Stored): Promise<void> {
   const cache = await openRunCache();
   if (!cache) return;
   const maxAge = Math.max(1, Math.floor((entry.expiresAt - Date.now()) / 1000));
-  await cache.put(
-    cacheKey(entry.run.id),
-    new Response(JSON.stringify(entry), {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": `private, max-age=${maxAge}`,
-      },
-    }),
-  );
+  try {
+    // Cloudflare Cache API silently skips `private` / no-store responses.
+    // Use public + max-age so put actually stores across isolates.
+    await cache.put(
+      cacheKey(entry.run.id),
+      new Response(JSON.stringify(entry), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": `public, max-age=${maxAge}`,
+        },
+      }),
+    );
+  } catch {
+    // Cache API unavailable (local Node) — memory-only is fine there.
+  }
 }
 
 async function readPersisted(id: string): Promise<Stored | null> {
@@ -73,7 +85,11 @@ async function readPersisted(id: string): Promise<Stored | null> {
     const entry = (await res.json()) as Stored;
     if (!entry?.run?.id || typeof entry.expiresAt !== "number") return null;
     if (entry.expiresAt <= Date.now()) {
-      await cache.delete(cacheKey(id));
+      try {
+        await cache.delete(cacheKey(id));
+      } catch {
+        /* ignore */
+      }
       return null;
     }
     return entry;
