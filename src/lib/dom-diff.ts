@@ -8,7 +8,7 @@ import {
 } from "@/lib/meaningful-text";
 
 const MAX_CHANGES = 25;
-const MIN_LAYOUT_TEXT = 12;
+const MIN_LAYOUT_TEXT = 6;
 const SKIP_TAGS = new Set([
   "script",
   "style",
