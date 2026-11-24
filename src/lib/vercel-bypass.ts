@@ -43,3 +43,67 @@ export function toDiffyAssetUrl(
   });
   return `/api/asset?${params.toString()}`;
 }
+
+/**
+ * Rewrite url(...) / @import targets inside a stylesheet so they keep working
+ * when the CSS itself is served from /api/asset (browser would otherwise
+ * resolve relatives against Diffy's origin).
+ */
+export function rewriteCssAssetUrls(
+  css: string,
+  cssUrl: string,
+  runId: string,
+  pageUrl: string,
+): string {
+  let base: URL;
+  try {
+    base = new URL(cssUrl);
+  } catch {
+    return css;
+  }
+
+  const rewriteRef = (raw: string): string => {
+    const v = raw.trim();
+    if (!v) return v;
+    const lower = v.toLowerCase();
+    if (
+      lower.startsWith("data:") ||
+      lower.startsWith("blob:") ||
+      lower.startsWith("#") ||
+      lower.startsWith("/api/asset?")
+    ) {
+      return v;
+    }
+    try {
+      const abs = new URL(v, base).toString();
+      return toDiffyAssetUrl(abs, runId, pageUrl);
+    } catch {
+      return v;
+    }
+  };
+
+  let out = css.replace(
+    /url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi,
+    (_m, quote: string, u: string) => {
+      const next = rewriteRef(u);
+      const q = quote || '"';
+      return `url(${q}${next}${q})`;
+    },
+  );
+
+  out = out.replace(
+    /@import\s+(?:url\(\s*(['"]?)([^)'"]+)\1\s*\)|(['"])([^'"]+)\3)/gi,
+    (_full, q1: string | undefined, u1: string | undefined, q2: string | undefined, u2: string | undefined) => {
+      if (u1 != null) {
+        const next = rewriteRef(u1);
+        const q = q1 || '"';
+        return `@import url(${q}${next}${q})`;
+      }
+      const next = rewriteRef(u2 ?? "");
+      const q = q2 || '"';
+      return `@import ${q}${next}${q}`;
+    },
+  );
+
+  return out;
+}

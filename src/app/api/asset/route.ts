@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
 import { getRun } from "@/lib/run-store";
 import { assertSafePublicUrl, assertSafeResolvedHost } from "@/lib/ssrf";
-import { bypassHeaders, isSameSiteAsset } from "@/lib/vercel-bypass";
+import {
+  bypassHeaders,
+  isSameSiteAsset,
+  rewriteCssAssetUrls,
+} from "@/lib/vercel-bypass";
 
 const MAX_BYTES = 2_000_000;
 const TIMEOUT_MS = 12_000;
+
+function isCssContentType(contentType: string): boolean {
+  const ct = contentType.toLowerCase();
+  return (
+    ct.includes("text/css") ||
+    ct.includes("stylesheet") ||
+    ct.includes("application/css")
+  );
+}
 
 /**
  * Same-origin asset proxy for a review run. Uses the run's stored Vercel
@@ -22,7 +35,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const run = getRun(runId);
+  const run = await getRun(runId);
   if (!run || run.status !== "ready") {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
@@ -97,13 +110,38 @@ export async function GET(request: Request) {
       );
     }
 
+    const contentType =
+      res.headers.get("content-type") || "application/octet-stream";
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) {
       return NextResponse.json({ error: "Asset too large" }, { status: 502 });
     }
 
-    const contentType =
-      res.headers.get("content-type") || "application/octet-stream";
+    // Stylesheets loaded via /api/asset must have their url()/@import
+    // rewritten — the browser resolves relatives against Diffy's path.
+    if (isCssContentType(contentType) || /\.css(?:$|\?)/i.test(current.pathname)) {
+      const text = new TextDecoder("utf-8").decode(buf);
+      const pageUrl = isSameSiteAsset(current.toString(), run.previewUrl)
+        ? run.previewUrl
+        : run.baseUrl;
+      const rewritten = rewriteCssAssetUrls(
+        text,
+        current.toString(),
+        run.id,
+        pageUrl,
+      );
+      return new NextResponse(rewritten, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType.includes("css")
+            ? contentType
+            : "text/css; charset=utf-8",
+          "Cache-Control": "private, max-age=300",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
     return new NextResponse(buf, {
       status: 200,
       headers: {
