@@ -35,7 +35,16 @@ Runs are kept in memory and also written to the Workers Cache API (~1 hour) so `
 
 Paste a **GitHub pull request URL** on the compare form. Diffy loads the PR’s changed files and **keeps only visual diffs that match** those files (image path / basename, or copy that appears in the PR patch). Randomized carousel slides and other dynamic HTML noise are hidden, with a count in the review sidebar.
 
-Public PRs work without auth. Private repos need a PAT on the form (or `GITHUB_TOKEN` / `GH_TOKEN` on the server).
+Public PRs work without auth. Private repos use **GitHub OAuth** (Connect GitHub on the form). Create a GitHub OAuth App and set:
+
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- Optional: `DIFFY_SESSION_SECRET` (cookie sealing; falls back to the client secret)
+- Optional: `GITHUB_OAUTH_REDIRECT_URI` (defaults to `{origin}/api/auth/github/callback`)
+
+Callback URL example: `https://diffy.charliemday31.workers.dev/api/auth/github/callback`  
+Local: `http://localhost:3456/api/auth/github/callback`  
+Requested scopes: `read:user`, `repo`.
 
 ### Vercel auth-gated previews
 

@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, GitBranch, Loader2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+type GhMe = {
+  configured: boolean;
+  connected: boolean;
+  login: string | null;
+  stale?: boolean;
+};
 
 export function CompareForm() {
   const router = useRouter();
@@ -11,10 +18,57 @@ export function CompareForm() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [protectionBypass, setProtectionBypass] = useState("");
   const [prUrl, setPrUrl] = useState("");
-  const [githubToken, setGithubToken] = useState("");
   const [polishLabels, setPolishLabels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [gh, setGh] = useState<GhMe | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/github/me");
+        const data = (await res.json()) as GhMe;
+        if (!cancelled) setGh(data);
+      } catch {
+        if (!cancelled) {
+          setGh({ configured: false, connected: false, login: null });
+        }
+      }
+    })();
+
+    // Surface OAuth callback errors from ?gh_error=
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ghError = params.get("gh_error");
+      if (ghError) {
+        setError(
+          ghError === "access_denied"
+            ? "GitHub authorization was cancelled."
+            : `GitHub sign-in failed (${ghError}).`,
+        );
+        params.delete("gh_error");
+        params.delete("gh");
+        const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+        window.history.replaceState({}, "", next);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function disconnectGithub() {
+    await fetch("/api/auth/github/logout", { method: "POST" });
+    setGh((prev) =>
+      prev
+        ? { ...prev, connected: false, login: null }
+        : { configured: true, connected: false, login: null },
+    );
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +84,6 @@ export function CompareForm() {
           polishLabels,
           protectionBypass: protectionBypass.trim() || undefined,
           prUrl: prUrl.trim() || undefined,
-          githubToken: githubToken.trim() || undefined,
         }),
       });
       const data = (await res.json()) as {
@@ -112,27 +165,50 @@ export function CompareForm() {
       </label>
 
       {prUrl.trim() ? (
-        <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-[var(--diffy-ink)]">
-            GitHub token{" "}
-            <span className="font-normal text-[var(--diffy-muted)]">
-              (optional, private repos)
-            </span>
-          </span>
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder="ghp_… or github_pat_…"
-            value={githubToken}
-            onChange={(e) => setGithubToken(e.target.value)}
-            className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm font-mono outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
-          />
-          <span className="block text-xs text-[var(--diffy-muted)]">
-            Public PRs work without a token. For private repos, paste a
-            fine-grained or classic PAT with contents/PR read. Used only on the
-            server for this compare.
-          </span>
-        </label>
+        <div className="rounded-lg border border-[var(--diffy-line)] bg-white/60 px-3 py-3 space-y-2">
+          <p className="text-xs font-medium text-[var(--diffy-ink)]">
+            GitHub access
+          </p>
+          {!gh ? (
+            <p className="text-xs text-[var(--diffy-muted)]">Checking…</p>
+          ) : !gh.configured ? (
+            <p className="text-xs text-[var(--diffy-muted)]">
+              Public PRs work without sign-in. OAuth isn’t configured on this
+              server yet (needs{" "}
+              <span className="font-mono">GITHUB_CLIENT_ID</span> /{" "}
+              <span className="font-mono">GITHUB_CLIENT_SECRET</span>).
+            </p>
+          ) : gh.connected && gh.login ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--diffy-line)] bg-white px-2.5 py-1.5 text-xs">
+                <GitBranch className="size-3.5" />@{gh.login}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={disconnectGithub}
+                className="h-8"
+              >
+                <LogOut className="size-3.5" />
+                Disconnect
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--diffy-muted)]">
+                Public PRs work without sign-in. Connect GitHub for private
+                repos.
+              </p>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <a href="/api/auth/github?returnTo=/">
+                  <GitBranch className="size-3.5" />
+                  Connect GitHub
+                </a>
+              </Button>
+            </div>
+          )}
+        </div>
       ) : null}
 
       <label className="block space-y-1.5">

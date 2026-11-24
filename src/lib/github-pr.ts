@@ -82,17 +82,6 @@ export function parseGithubPrUrl(raw: string): ParsedPrRef {
   };
 }
 
-export function normalizeGithubToken(
-  raw: string | undefined | null,
-): string | undefined {
-  const s = raw?.trim();
-  if (!s) return undefined;
-  if (s.length > 256 || /[\r\n\0]/.test(s)) {
-    throw new Error("Invalid GitHub token");
-  }
-  return s;
-}
-
 function basenameOf(path: string): string {
   const parts = path.split("/");
   return parts[parts.length - 1] || path;
@@ -158,15 +147,17 @@ export async function fetchPullRequestInfo(
 
   if (prRes.status === 404 || filesRes.status === 404) {
     throw new Error(
-      "Pull request not found (private repo? add a GitHub token with repo read access)",
+      "Pull request not found (private repo? connect GitHub on the home page)",
     );
   }
   if (prRes.status === 401 || filesRes.status === 401) {
-    throw new Error("GitHub authentication failed — check the token");
+    throw new Error(
+      "GitHub authentication failed — reconnect GitHub on the home page",
+    );
   }
   if (prRes.status === 403 || filesRes.status === 403) {
     throw new Error(
-      "GitHub API rate limit or permission denied — try again or add a token",
+      "GitHub API rate limit or permission denied — reconnect GitHub or try again",
     );
   }
   if (!prRes.ok) {

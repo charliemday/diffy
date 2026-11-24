@@ -10,12 +10,9 @@ import {
   normalizeProtectionBypass,
   toDiffyAssetUrl,
 } from "@/lib/vercel-bypass";
-import {
-  fetchPullRequestInfo,
-  normalizeGithubToken,
-  parseGithubPrUrl,
-} from "@/lib/github-pr";
+import { fetchPullRequestInfo, parseGithubPrUrl } from "@/lib/github-pr";
 import { filterChangesToPullRequest } from "@/lib/pr-filter-changes";
+import { readAccessTokenFromCookie } from "@/lib/github-oauth";
 
 const COMPARE_LIMIT = 8;
 const COMPARE_WINDOW_MS = 60_000;
@@ -65,7 +62,6 @@ export async function POST(request: Request) {
     polishLabels?: boolean;
     protectionBypass?: string;
     prUrl?: string;
-    githubToken?: string;
   };
   try {
     body = await request.json();
@@ -79,10 +75,8 @@ export async function POST(request: Request) {
   const prUrlRaw = body.prUrl?.trim();
 
   let protectionBypass: string | undefined;
-  let githubToken: string | undefined;
   try {
     protectionBypass = normalizeProtectionBypass(body.protectionBypass);
-    githubToken = normalizeGithubToken(body.githubToken);
     if (prUrlRaw) parseGithubPrUrl(prUrlRaw);
   } catch (err) {
     return NextResponse.json(
@@ -93,6 +87,10 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  // Prefer user OAuth cookie; fall back to server GITHUB_TOKEN / GH_TOKEN.
+  const githubToken =
+    readAccessTokenFromCookie(request.headers.get("cookie")) || undefined;
 
   if (!baseUrl || !previewUrl) {
     return NextResponse.json(
