@@ -35,7 +35,6 @@ describe("compare-form-storage", () => {
       previewUrl: "https://preview.example.com/pricing",
       prUrl: "https://github.com/acme/site/pull/42",
       protectionBypass: "bypass-secret-123",
-      polishLabels: true,
     };
 
     writeCompareFormDraft(draft, storage);
@@ -62,14 +61,13 @@ describe("compare-form-storage", () => {
     assert.deepEqual(parseCompareFormDraft("not-json"), EMPTY_COMPARE_FORM_DRAFT);
     assert.deepEqual(
       parseCompareFormDraft(
-        JSON.stringify({ baseUrl: "https://a.com", prUrl: 123, polishLabels: 1 }),
+        JSON.stringify({ baseUrl: "https://a.com", prUrl: 123 }),
       ),
       {
         baseUrl: "https://a.com",
         previewUrl: "",
         prUrl: "",
         protectionBypass: "",
-        polishLabels: true,
       },
     );
   });
@@ -88,6 +86,6 @@ describe("compare-form-storage", () => {
       parseCompareFormDraft(null),
       EMPTY_COMPARE_FORM_DRAFT,
     );
-    assert.equal(COMPARE_FORM_STORAGE_KEY, "diffy.compareForm.v1");
+    assert.equal(COMPARE_FORM_STORAGE_KEY, "diffy.compareForm.v2");
   });
 });

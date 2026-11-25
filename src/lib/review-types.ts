@@ -15,8 +15,6 @@ export type ReviewChange = {
   selector: string;
   before: ChangeContent;
   after: ChangeContent;
-  /** Set when this change was retained because it matched the linked PR */
-  inPr?: boolean;
 };
 
 export type PrFileSummary = {
@@ -36,8 +34,8 @@ export type PrCompanion = {
   headRef: string;
   baseRef: string;
   files: PrFileSummary[];
-  /** Visual diffs dropped as likely dynamic / not in the PR */
-  filteredOutCount: number;
+  /** PR visual claims that were not found on this page’s HTML */
+  unlocatedCount: number;
 };
 
 export type ReviewRun = {

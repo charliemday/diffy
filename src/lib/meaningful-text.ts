@@ -1,6 +1,6 @@
 /**
- * Shared text/URL normalization so DOM diffs and PR companion filtering
- * ignore formatting-only churn (prettier, eslint --fix, entity noise).
+ * Shared text/URL normalization so locating PR claims in HTML
+ * ignores formatting-only churn (entities, whitespace, cache-bust queries).
  */
 
 /** Collapse whitespace for display / loose equality. */
@@ -28,17 +28,6 @@ export function meaningfulText(s: string): string {
     .toLowerCase();
 }
 
-/** True when before/after are the same words after formatting normalization. */
-export function isTrivialTextChange(
-  before: string | undefined,
-  after: string | undefined,
-): boolean {
-  const a = meaningfulText(before ?? "");
-  const b = meaningfulText(after ?? "");
-  if (!a && !b) return true;
-  return a === b;
-}
-
 /**
  * Compare image URLs ignoring cache-busting query/hash.
  * Absolute vs relative with the same pathname still counts as equal when
@@ -53,13 +42,4 @@ export function meaningfulImageSrc(src: string): string {
   } catch {
     return trimmed.split("?")[0]?.split("#")[0]?.toLowerCase() ?? trimmed;
   }
-}
-
-export function isTrivialImageChange(
-  beforeSrc: string | undefined,
-  afterSrc: string | undefined,
-): boolean {
-  if (!beforeSrc && !afterSrc) return true;
-  if (!beforeSrc || !afterSrc) return false;
-  return meaningfulImageSrc(beforeSrc) === meaningfulImageSrc(afterSrc);
 }

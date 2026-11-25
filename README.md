@@ -1,6 +1,6 @@
 # Diffy
 
-Visual PR review for marketing websites. Paste a **base URL** (live page) and a **preview URL** (PR deploy). Diffy fetches both, diffs the HTML, and opens a review with the page on the left and a timeline of copy, image, and layout changes on the right. Step with ↑ / ↓ to jump to each change.
+Visual PR review for marketing websites. Paste a **GitHub pull request**, the **base URL** (live page), and the **preview URL** (PR deploy). Diffy reads visual claims from the PR, finds them in the preview HTML, and opens a review with the page on the left and a timeline of copy, image, and layout changes on the right. Step with ↑ / ↓ to jump to each highlight.
 
 A hardcoded Northline demo still lives at `/review/demo` for offline walkthroughs.
 
@@ -13,27 +13,27 @@ npm run dev
 
 Open [http://localhost:3456](http://localhost:3456).
 
-### Compare two fixture pages
+Set `OPENAI_API_KEY` so Diffy can extract visual claims from the PR.
 
-With the dev server running:
+### Fixture pages
+
+With the dev server running, these local pages are allowed as base/preview URLs in development:
 
 - Base: `http://127.0.0.1:3456/fixtures/base.html`
 - Preview: `http://127.0.0.1:3456/fixtures/preview.html`
 
-Localhost fetches are allowed only in development.
-
 ## How it works
 
-1. **Home** — submit base + preview URLs (optional GitHub PR URL)  
-2. **`POST /api/compare`** — SSRF-safe fetch (manual redirects + DNS checks), DOM diff, optional PR file filter, sanitize + store the run (rate-limited)  
-3. **`/review/[runId]`** — timeline + before/after panel (+ PR companion when linked)  
-4. **`GET /api/proxy`** — sanitized HTML of the after page in a **script-free sandboxed iframe**; the parent scrolls/highlights changes  
+1. **Home** — submit a GitHub PR URL plus base and preview URLs  
+2. **`POST /api/compare`** — load the PR files, ask the model for visual claims, fetch the preview HTML (SSRF-safe), locate those claims, stamp `data-diffy-id`, store the run (rate-limited)  
+3. **`/review/[runId]`** — timeline + before/after panel + PR companion  
+4. **`GET /api/proxy`** — sanitized HTML of the after page in a **script-free sandboxed iframe**; the parent scrolls/highlights claims  
+
+Dynamic page noise (randomized carousels, live user names) is ignored because it is never a PR claim.
 
 Runs are kept in memory and also written to the Workers Cache API (~1 hour) so `/api/proxy` and `/api/asset` still resolve across isolates. Compare again if a run eventually expires.
 
-### PR companion (optional)
-
-Paste a **GitHub pull request URL** on the compare form. Diffy loads the PR’s changed files and **keeps only copy / layout / image diffs tied to net content edits** in that PR (image path / basename, or wording that actually changed in the patch). Formatting-only hunks (prettier / lint) and randomized carousel noise are hidden, with a count in the review sidebar.
+### GitHub
 
 Public PRs work without auth. Private repos use **GitHub OAuth** (Connect GitHub on the form). Create a GitHub OAuth App and set:
 
@@ -52,11 +52,7 @@ If the preview uses **Deployment Protection**, paste the project’s **Protectio
 
 Create the secret in Vercel → Project → Settings → Deployment Protection.
 
-### Optional AI labels
-
-Check **Improve labels with AI** on the form to send truncated change text to OpenAI (`OPENAI_API_KEY`). Off by default; the DOM diff is always the source of truth.
-
-Works best on **SSR / static HTML**. Client-rendered shells with empty first HTML will often show no changes.
+Works best on **SSR / static HTML**. Client-rendered shells with empty first HTML will often show no located claims.
 
 ## Deploy to Cloudflare
 

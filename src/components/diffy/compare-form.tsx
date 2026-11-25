@@ -27,7 +27,7 @@ export function CompareForm() {
     getCompareFormSnapshot,
     getCompareFormServerSnapshot,
   );
-  const { baseUrl, previewUrl, prUrl, protectionBypass, polishLabels } = draft;
+  const { baseUrl, previewUrl, prUrl, protectionBypass } = draft;
   const hasInputs = !isCompareFormDraftEmpty(draft);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,9 +91,8 @@ export function CompareForm() {
         body: JSON.stringify({
           baseUrl,
           previewUrl,
-          polishLabels,
           protectionBypass: protectionBypass.trim() || undefined,
-          prUrl: prUrl.trim() || undefined,
+          prUrl: prUrl.trim(),
         }),
       });
       const data = (await res.json()) as {
@@ -119,10 +118,11 @@ export function CompareForm() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--diffy-muted)]">
-            Compare two URLs
+            Review a pull request
           </p>
           <p className="mt-1 text-sm text-[var(--diffy-muted)]">
-            Base is the live page. Preview is the PR deploy of the same page.
+            Diffy reads the PR for visual claims, finds them on the preview
+            page, and highlights each one.
           </p>
         </div>
         {hasInputs ? (
@@ -140,6 +140,65 @@ export function CompareForm() {
             Clear
           </Button>
         ) : null}
+      </div>
+
+      <label className="block space-y-1.5">
+        <span className="text-xs font-medium text-[var(--diffy-ink)]">
+          GitHub pull request
+        </span>
+        <input
+          type="url"
+          required
+          placeholder="https://github.com/owner/repo/pull/123"
+          value={prUrl}
+          onChange={(e) => updateCompareFormDraft({ prUrl: e.target.value })}
+          className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
+        />
+      </label>
+
+      <div className="rounded-lg border border-[var(--diffy-line)] bg-white/60 px-3 py-3 space-y-2">
+        <p className="text-xs font-medium text-[var(--diffy-ink)]">
+          GitHub access
+        </p>
+        {!gh ? (
+          <p className="text-xs text-[var(--diffy-muted)]">Checking…</p>
+        ) : !gh.configured ? (
+          <p className="text-xs text-[var(--diffy-muted)]">
+            Public PRs work without sign-in. OAuth isn’t configured on this
+            server yet (needs{" "}
+            <span className="font-mono">GITHUB_CLIENT_ID</span> /{" "}
+            <span className="font-mono">GITHUB_CLIENT_SECRET</span>).
+          </p>
+        ) : gh.connected && gh.login ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--diffy-line)] bg-white px-2.5 py-1.5 text-xs">
+              <GitBranch className="size-3.5" />@{gh.login}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={disconnectGithub}
+              className="h-8"
+            >
+              <LogOut className="size-3.5" />
+              Disconnect
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-[var(--diffy-muted)]">
+              Public PRs work without sign-in. Connect GitHub for private
+              repos.
+            </p>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <a href="/api/auth/github?returnTo=/">
+                <GitBranch className="size-3.5" />
+                Connect GitHub
+              </a>
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -175,74 +234,6 @@ export function CompareForm() {
 
       <label className="block space-y-1.5">
         <span className="text-xs font-medium text-[var(--diffy-ink)]">
-          GitHub pull request{" "}
-          <span className="font-normal text-[var(--diffy-muted)]">
-            (optional)
-          </span>
-        </span>
-        <input
-          type="url"
-          placeholder="https://github.com/owner/repo/pull/123"
-          value={prUrl}
-          onChange={(e) => updateCompareFormDraft({ prUrl: e.target.value })}
-          className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
-        />
-        <span className="block text-xs text-[var(--diffy-muted)]">
-          When set, Diffy keeps only copy / layout / image changes that match
-          real content edits in the PR — formatting-only hunks and carousel
-          noise are hidden.
-        </span>
-      </label>
-
-      {prUrl.trim() ? (
-        <div className="rounded-lg border border-[var(--diffy-line)] bg-white/60 px-3 py-3 space-y-2">
-          <p className="text-xs font-medium text-[var(--diffy-ink)]">
-            GitHub access
-          </p>
-          {!gh ? (
-            <p className="text-xs text-[var(--diffy-muted)]">Checking…</p>
-          ) : !gh.configured ? (
-            <p className="text-xs text-[var(--diffy-muted)]">
-              Public PRs work without sign-in. OAuth isn’t configured on this
-              server yet (needs{" "}
-              <span className="font-mono">GITHUB_CLIENT_ID</span> /{" "}
-              <span className="font-mono">GITHUB_CLIENT_SECRET</span>).
-            </p>
-          ) : gh.connected && gh.login ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--diffy-line)] bg-white px-2.5 py-1.5 text-xs">
-                <GitBranch className="size-3.5" />@{gh.login}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={disconnectGithub}
-                className="h-8"
-              >
-                <LogOut className="size-3.5" />
-                Disconnect
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs text-[var(--diffy-muted)]">
-                Public PRs work without sign-in. Connect GitHub for private
-                repos.
-              </p>
-              <Button type="button" variant="outline" size="sm" asChild>
-                <a href="/api/auth/github?returnTo=/">
-                  <GitBranch className="size-3.5" />
-                  Connect GitHub
-                </a>
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      <label className="block space-y-1.5">
-        <span className="text-xs font-medium text-[var(--diffy-ink)]">
           Vercel protection bypass{" "}
           <span className="font-normal text-[var(--diffy-muted)]">
             (optional)
@@ -265,21 +256,6 @@ export function CompareForm() {
         </span>
       </label>
 
-      <label className="flex items-start gap-2.5 text-sm text-[var(--diffy-muted)] cursor-pointer">
-        <input
-          type="checkbox"
-          checked={polishLabels}
-          onChange={(e) =>
-            updateCompareFormDraft({ polishLabels: e.target.checked })
-          }
-          className="mt-1 size-4 rounded border-[var(--diffy-line)]"
-        />
-        <span>
-          Improve labels with AI. Sends change text to OpenAI when a server key
-          is configured. Off by default.
-        </span>
-      </label>
-
       {error && (
         <p
           role="alert"
@@ -299,18 +275,18 @@ export function CompareForm() {
           {loading ? (
             <>
               <Loader2 className="size-4 animate-spin" />
-              Comparing…
+              Reviewing…
             </>
           ) : (
             <>
-              Compare
+              Review PR
               <ArrowRight className="size-4" />
             </>
           )}
         </Button>
         <p className="text-xs text-[var(--diffy-muted)]">
-          Works best on SSR / static HTML. Client-only shells may show no
-          changes.
+          Works best on SSR / static HTML. Client-only shells may hide the
+          claims.
         </p>
       </div>
     </form>
