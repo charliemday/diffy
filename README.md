@@ -24,8 +24,8 @@ With the dev server running, `POST /api/compare` still accepts optional `baseUrl
 
 ## How it works
 
-1. **Home** — submit a GitHub PR URL (optional page path, optional Vercel bypass)  
-2. **`POST /api/compare`** — load the PR files, resolve preview/live URLs from GitHub deployments (or commit statuses / repo homepage), ask the model for visual claims, fetch the preview HTML (SSRF-safe), locate those claims, stamp `data-diffy-id`, store the run (rate-limited)  
+1. **Home** — submit a GitHub PR URL (optional page path)  
+2. **Progress dialog** — `POST /api/compare/prepare` resolves preview/live URLs; if the preview is on Vercel, Diffy asks for a protection bypass. Then `POST /api/compare` streams the remaining steps (claims, fetch, locate), stamps `data-diffy-id`, and stores the run (rate-limited)  
 3. **`/review/[runId]`** — timeline + before/after panel + PR companion  
 4. **`GET /api/proxy`** — sanitized HTML of the after page in a **script-free sandboxed iframe**; the parent scrolls/highlights claims  
 
@@ -50,7 +50,7 @@ Preview and live URLs come from GitHub **deployments** for the PR head SHA (`env
 
 ### Vercel auth-gated previews
 
-If the preview uses **Deployment Protection**, paste the project’s **Protection Bypass for Automation** secret on the compare form. Diffy sends it as `x-vercel-protection-bypass` on server fetches and proxies same-host assets through `/api/asset` so the secret never appears in the iframe HTML. Without a bypass secret, stylesheet and image URLs stay pointed at the origin so the browser loads them directly.
+After you click **Review PR**, Diffy shows a step-by-step progress dialog. If the deploy is a Vercel preview, it pauses and asks for the project’s **Protection Bypass for Automation** secret (or you can skip if the preview is public). Diffy sends it as `x-vercel-protection-bypass` on server fetches and proxies same-host assets through `/api/asset` so the secret never appears in the iframe HTML. Without a bypass secret, stylesheet and image URLs stay pointed at the origin so the browser loads them directly.
 
 Create the secret in Vercel → Project → Settings → Deployment Protection.
 

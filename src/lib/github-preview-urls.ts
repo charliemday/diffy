@@ -105,6 +105,16 @@ export function routeFromFilename(filename: string): string | null {
   return null;
 }
 
+export function isVercelPreviewUrl(raw: string | undefined | null): boolean {
+  if (!raw) return false;
+  try {
+    const host = new URL(raw).hostname.toLowerCase();
+    return host === "vercel.app" || host.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
 export function pickSiteUrl(raw: string | undefined | null): string | undefined {
   if (!raw) return undefined;
   try {

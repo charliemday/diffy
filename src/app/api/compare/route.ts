@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { fetchPageHtml } from "@/lib/fetch-page";
 import { newRunId, saveRun } from "@/lib/run-store";
 import type { PrCompanion, ReviewChange, ReviewRun } from "@/lib/review-types";
@@ -39,6 +38,14 @@ function rewriteChangeAssets(
   }));
 }
 
+function isBypassError(message: string): boolean {
+  return /auth-gated/i.test(message);
+}
+
+function jsonError(error: string, status: number) {
+  return Response.json({ error }, { status });
+}
+
 export async function POST(request: Request) {
   const retryAfter = takeToken(
     `compare:${clientKeyFromRequest(request)}`,
@@ -46,11 +53,16 @@ export async function POST(request: Request) {
     COMPARE_WINDOW_MS,
   );
   if (retryAfter != null) {
-    return NextResponse.json(
-      { error: `Too many compares. Try again in ${retryAfter}s.` },
+    return new Response(
+      JSON.stringify({
+        error: `Too many compares. Try again in ${retryAfter}s.`,
+      }),
       {
         status: 429,
-        headers: { "Retry-After": String(retryAfter) },
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(retryAfter),
+        },
       },
     );
   }
@@ -65,7 +77,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return jsonError("Invalid JSON body", 400);
   }
 
   const prUrlRaw = body.prUrl?.trim();
@@ -76,12 +88,9 @@ export async function POST(request: Request) {
     protectionBypass = normalizeProtectionBypass(body.protectionBypass);
     if (prUrlRaw) parseGithubPrUrl(prUrlRaw);
   } catch (err) {
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error ? err.message : "Invalid compare options",
-      },
-      { status: 400 },
+    return jsonError(
+      err instanceof Error ? err.message : "Invalid compare options",
+      400,
     );
   }
 
@@ -89,109 +98,148 @@ export async function POST(request: Request) {
     readAccessTokenFromCookie(request.headers.get("cookie")) || undefined;
 
   if (!prUrlRaw) {
-    return NextResponse.json(
-      { error: "A GitHub pull request URL is required" },
-      { status: 400 },
-    );
+    return jsonError("A GitHub pull request URL is required", 400);
   }
 
   const runId = newRunId();
   const fetchOpts = { protectionBypass };
+  const encoder = new TextEncoder();
 
-  try {
-    const prInfo = await fetchPullRequestInfo(prUrlRaw, { token: githubToken });
-    const [resolved, { claims }] = await Promise.all([
-      resolvePrSiteUrls(prInfo, {
-        token: githubToken,
-        pagePath,
-        previewUrl: body.previewUrl?.trim(),
-        baseUrl: body.baseUrl?.trim(),
-      }),
-      extractVisualClaims(prInfo),
-    ]);
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (obj: unknown) => {
+        controller.enqueue(encoder.encode(`${JSON.stringify(obj)}\n`));
+      };
 
-    const previewPage = await fetchPageHtml(resolved.previewUrl, fetchOpts);
-    const basePage =
-      resolved.baseUrl === resolved.previewUrl
-        ? previewPage
-        : await fetchPageHtml(resolved.baseUrl, fetchOpts).catch(() => ({
-            html: "",
-            finalUrl: resolved.baseUrl,
-          }));
+      try {
+        send({ step: "pr", status: "start" });
+        const prInfo = await fetchPullRequestInfo(prUrlRaw, {
+          token: githubToken,
+        });
+        send({ step: "pr", status: "done" });
 
-    const located = locateClaimsInHtml(claims, {
-      afterHtml: previewPage.html,
-      afterUrl: previewPage.finalUrl,
-    });
+        send({ step: "urls", status: "start" });
+        const resolved = await resolvePrSiteUrls(prInfo, {
+          token: githubToken,
+          pagePath,
+          previewUrl: body.previewUrl?.trim(),
+          baseUrl: body.baseUrl?.trim(),
+        });
+        send({
+          step: "urls",
+          status: "done",
+          previewUrl: resolved.previewUrl,
+          baseUrl: resolved.baseUrl,
+        });
 
-    let changes = located.changes;
-    const pr: PrCompanion = {
-      url: prInfo.url,
-      owner: prInfo.owner,
-      repo: prInfo.repo,
-      number: prInfo.number,
-      title: prInfo.title,
-      headRef: prInfo.headRef,
-      baseRef: prInfo.baseRef,
-      files: prInfo.files.map((f) => ({
-        filename: f.filename,
-        status: f.status,
-        additions: f.additions,
-        deletions: f.deletions,
-        isMedia: f.isMedia,
-      })),
-      unlocatedCount: located.unlocatedCount,
-    };
+        send({ step: "claims", status: "start" });
+        const { claims } = await extractVisualClaims(prInfo);
+        send({ step: "claims", status: "done" });
 
-    if (protectionBypass) {
-      changes = rewriteChangeAssets(
-        changes,
-        runId,
-        basePage.finalUrl,
-        previewPage.finalUrl,
-      );
-    }
+        send({ step: "fetch", status: "start" });
+        const previewPage = await fetchPageHtml(
+          resolved.previewUrl,
+          fetchOpts,
+        );
+        const basePage =
+          resolved.baseUrl === resolved.previewUrl
+            ? previewPage
+            : await fetchPageHtml(resolved.baseUrl, fetchOpts).catch(() => ({
+                html: "",
+                finalUrl: resolved.baseUrl,
+              }));
+        send({ step: "fetch", status: "done" });
 
-    const run: ReviewRun = {
-      id: runId,
-      createdAt: new Date().toISOString(),
-      baseUrl: basePage.finalUrl,
-      previewUrl: previewPage.finalUrl,
-      pageUrl: previewPage.finalUrl,
-      pageTitle: pr.title,
-      changes,
-      status: "ready",
-      beforeHtml: basePage.html,
-      afterHtml: located.afterHtml,
-      protectionBypass,
-      pr,
-    };
+        send({ step: "locate", status: "start" });
+        const located = locateClaimsInHtml(claims, {
+          afterHtml: previewPage.html,
+          afterUrl: previewPage.finalUrl,
+        });
 
-    await saveRun(run);
+        let changes = located.changes;
+        const pr: PrCompanion = {
+          url: prInfo.url,
+          owner: prInfo.owner,
+          repo: prInfo.repo,
+          number: prInfo.number,
+          title: prInfo.title,
+          headRef: prInfo.headRef,
+          baseRef: prInfo.baseRef,
+          files: prInfo.files.map((f) => ({
+            filename: f.filename,
+            status: f.status,
+            additions: f.additions,
+            deletions: f.deletions,
+            isMedia: f.isMedia,
+          })),
+          unlocatedCount: located.unlocatedCount,
+        };
 
-    return NextResponse.json({
-      runId: run.id,
-      changeCount: changes.length,
-      unlocatedCount: pr.unlocatedCount,
-      previewUrl: previewPage.finalUrl,
-      baseUrl: basePage.finalUrl,
-    });
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Compare failed unexpectedly";
+        if (protectionBypass) {
+          changes = rewriteChangeAssets(
+            changes,
+            runId,
+            basePage.finalUrl,
+            previewPage.finalUrl,
+          );
+        }
 
-    const failed: ReviewRun = {
-      id: runId,
-      createdAt: new Date().toISOString(),
-      baseUrl: body.baseUrl?.trim() || "",
-      previewUrl: body.previewUrl?.trim() || "",
-      pageUrl: body.previewUrl?.trim() || "",
-      changes: [],
-      status: "error",
-      error: message,
-    };
-    await saveRun(failed);
+        const run: ReviewRun = {
+          id: runId,
+          createdAt: new Date().toISOString(),
+          baseUrl: basePage.finalUrl,
+          previewUrl: previewPage.finalUrl,
+          pageUrl: previewPage.finalUrl,
+          pageTitle: pr.title,
+          changes,
+          status: "ready",
+          beforeHtml: basePage.html,
+          afterHtml: located.afterHtml,
+          protectionBypass,
+          pr,
+        };
 
-    return NextResponse.json({ error: message, runId }, { status: 422 });
-  }
+        await saveRun(run);
+        send({ step: "locate", status: "done" });
+        send({
+          step: "done",
+          runId: run.id,
+          changeCount: changes.length,
+          unlocatedCount: pr.unlocatedCount,
+          previewUrl: previewPage.finalUrl,
+          baseUrl: basePage.finalUrl,
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Compare failed unexpectedly";
+
+        const failed: ReviewRun = {
+          id: runId,
+          createdAt: new Date().toISOString(),
+          baseUrl: body.baseUrl?.trim() || "",
+          previewUrl: body.previewUrl?.trim() || "",
+          pageUrl: body.previewUrl?.trim() || "",
+          changes: [],
+          status: "error",
+          error: message,
+        };
+        await saveRun(failed);
+
+        send({
+          error: message,
+          runId,
+          needsBypass: isBypassError(message),
+        });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
 }

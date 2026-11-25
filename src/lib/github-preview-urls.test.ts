@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   applyPagePath,
   inferPagePath,
+  isVercelPreviewUrl,
   normalizePagePath,
   pickSiteUrl,
   resolvePrSiteUrls,
@@ -59,6 +60,15 @@ describe("page path helpers", () => {
       pickSiteUrl("https://site-git-feat.vercel.app/"),
       "https://site-git-feat.vercel.app",
     );
+  });
+
+  it("detects Vercel preview hosts", () => {
+    assert.equal(
+      isVercelPreviewUrl("https://site-git-feat.vercel.app/pricing"),
+      true,
+    );
+    assert.equal(isVercelPreviewUrl("https://www.northline.example/"), false);
+    assert.equal(isVercelPreviewUrl("https://vercel.com/acme/site"), false);
   });
 });
 
