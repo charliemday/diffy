@@ -166,21 +166,14 @@ export function ReviewWorkspace(props: Props) {
 
         <aside className="lg:w-[380px] xl:w-[420px] shrink-0 flex flex-col min-h-[52vh] lg:min-h-0 lg:h-full rounded-xl border border-[var(--diffy-line)] bg-[var(--diffy-panel)] shadow-[0_18px_40px_-28px_rgba(20,40,30,0.4)] overflow-hidden">
           <div className="shrink-0 px-4 pt-4 pb-3 border-b border-[var(--diffy-line)]">
-            <div className="flex items-end justify-between gap-2">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--diffy-muted)]">
-                  Change timeline
-                </p>
-                <p className="text-sm text-[var(--diffy-muted)] mt-0.5">
-                  {empty
-                    ? "No visual claims on this page"
-                    : `${changes.length} visual change${changes.length === 1 ? "" : "s"}`}
-                </p>
-              </div>
-              <kbd className="hidden sm:inline-flex items-center gap-1 rounded-md border border-[var(--diffy-line)] bg-white px-2 py-1 text-[10px] text-[var(--diffy-muted)] font-mono">
-                ↑ ↓
-              </kbd>
-            </div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--diffy-muted)]">
+              Change timeline
+            </p>
+            <p className="text-sm text-[var(--diffy-muted)] mt-0.5">
+              {empty
+                ? "No visual claims on this page"
+                : `${changes.length} visual change${changes.length === 1 ? "" : "s"}`}
+            </p>
           </div>
 
           <div className="flex-1 min-h-[140px] px-2 py-2 overflow-hidden">
