@@ -119,6 +119,38 @@ export function CompareForm() {
     };
   }, []);
 
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    const shot = new URLSearchParams(window.location.search).get("shot");
+    if (shot !== "bypass" && shot !== "progress") return;
+    const previewUrl = "https://site-git-feat.vercel.app/pricing";
+    setDialogOpen(true);
+    setSubtitle("acme/site #42 · Update hero headline");
+    if (shot === "bypass") {
+      setShowBypass(true);
+      setPrepared({
+        previewUrl,
+        baseUrl: "https://www.northline.example/pricing",
+        isVercelPreview: true,
+      });
+      setSteps(
+        makeSteps(
+          true,
+          { pr: "done", urls: "done", bypass: "waiting" },
+          { urls: previewUrl },
+        ),
+      );
+      return;
+    }
+    setSteps(
+      makeSteps(false, {
+        pr: "done",
+        urls: "done",
+        claims: "active",
+      }),
+    );
+  }, []);
+
   async function disconnectGithub() {
     await fetch("/api/auth/github/logout", { method: "POST" });
     setGh((prev) =>
