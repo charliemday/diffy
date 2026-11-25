@@ -82,9 +82,6 @@ export function SitePreview({
         <div className="ml-2 flex-1 truncate rounded-md bg-white/80 px-3 py-1 text-[11px] text-[var(--diffy-muted)] font-mono">
           {barLabel}
         </div>
-        <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--diffy-muted)]">
-          After
-        </span>
       </div>
       {mode === "iframe" && runId ? (
         <iframe
