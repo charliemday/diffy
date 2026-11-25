@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CompareForm } from "@/components/diffy/compare-form";
+import { RecentReviews } from "@/components/diffy/recent-reviews";
 
 export default function HomePage() {
   return (
@@ -68,6 +69,7 @@ export default function HomePage() {
 
         <div className="mt-14 sm:mt-16 max-w-3xl animate-in fade-in duration-1000 delay-100 fill-mode-both">
           <CompareForm />
+          <RecentReviews />
         </div>
 
         <div className="mt-16 sm:mt-20 grid lg:grid-cols-[1.2fr_0.8fr] gap-6 items-stretch animate-in fade-in duration-1000 delay-150 fill-mode-both">

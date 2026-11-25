@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 
 type Props =
   | { mode: "demo" }
-  | { mode: "run"; run: ReviewRunPublic };
+  | { mode: "run"; run: ReviewRunPublic; afterHtml?: string };
 
 export function ReviewWorkspace(props: Props) {
   const isDemo = props.mode === "demo";
@@ -25,6 +25,8 @@ export function ReviewWorkspace(props: Props) {
   const title = isDemo
     ? DEMO_PR.title
     : pr?.title || props.run.pageTitle || "URL compare";
+  const localHtml =
+    props.mode === "run" && props.afterHtml ? props.afterHtml : null;
   const subtitle = isDemo ? (
     <span className="truncate font-mono">
       {DEMO_PR.branch} ← {DEMO_PR.base}
@@ -152,6 +154,14 @@ export function ReviewWorkspace(props: Props) {
               className="h-full min-h-[48vh] lg:min-h-0"
               activeSelector={activeChange?.selector ?? null}
               mode="demo"
+            />
+          ) : localHtml ? (
+            <SitePreview
+              className="h-full min-h-[48vh] lg:min-h-0"
+              activeSelector={activeChange?.selector ?? null}
+              mode="html"
+              html={localHtml}
+              pageLabel={props.run.previewUrl}
             />
           ) : (
             <SitePreview

@@ -33,12 +33,15 @@ export function SitePreview({
   mode = "demo",
   runId,
   pageLabel,
+  html,
 }: {
   activeSelector: string | null;
   className?: string;
-  mode?: "demo" | "iframe";
+  mode?: "demo" | "iframe" | "html";
   runId?: string;
   pageLabel?: string;
+  /** Stamped after HTML for browser-saved reviews (srcDoc). */
+  html?: string;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -61,9 +64,9 @@ export function SitePreview({
   }, [activeSelector, mode]);
 
   useEffect(() => {
-    if (mode !== "iframe") return;
+    if (mode !== "iframe" && mode !== "html") return;
     focusInFrame(iframeRef.current, activeSelector);
-  }, [activeSelector, mode]);
+  }, [activeSelector, mode, html]);
 
   const barLabel =
     pageLabel ?? (mode === "demo" ? "northline.co /" : "preview");
@@ -90,6 +93,16 @@ export function SitePreview({
           src={`/api/proxy?runId=${encodeURIComponent(runId)}&side=after`}
           className="min-h-0 flex-1 w-full border-0 bg-white"
           // Scripts disabled; allow-same-origin so the parent can highlight nodes
+          sandbox="allow-same-origin allow-popups-to-escape-sandbox"
+          referrerPolicy="no-referrer"
+          onLoad={() => focusInFrame(iframeRef.current, activeSelector)}
+        />
+      ) : mode === "html" && html ? (
+        <iframe
+          ref={iframeRef}
+          title="Diffy saved review preview"
+          srcDoc={html}
+          className="min-h-0 flex-1 w-full border-0 bg-white"
           sandbox="allow-same-origin allow-popups-to-escape-sandbox"
           referrerPolicy="no-referrer"
           onLoad={() => focusInFrame(iframeRef.current, activeSelector)}
