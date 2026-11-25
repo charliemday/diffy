@@ -33,11 +33,10 @@ export function PrCompanionPanel({ pr }: { pr: PrCompanion }) {
             </p>
           </div>
         </div>
-        {pr.filteredOutCount > 0 && (
+        {pr.unlocatedCount > 0 && (
           <p className="mt-2 rounded-md border border-[var(--diffy-line)] bg-white/70 px-2.5 py-1.5 text-[11px] text-[var(--diffy-muted)]">
-            Hid {pr.filteredOutCount} HTML diff
-            {pr.filteredOutCount === 1 ? "" : "s"} that didn’t match files in
-            this PR (carousel / dynamic noise).
+            {pr.unlocatedCount} PR visual claim
+            {pr.unlocatedCount === 1 ? "" : "s"} not found on this page.
           </p>
         )}
       </div>

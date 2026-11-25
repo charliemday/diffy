@@ -1,11 +1,10 @@
-export const COMPARE_FORM_STORAGE_KEY = "diffy.compareForm.v1";
+export const COMPARE_FORM_STORAGE_KEY = "diffy.compareForm.v2";
 
 export type CompareFormDraft = {
   baseUrl: string;
   previewUrl: string;
   prUrl: string;
   protectionBypass: string;
-  polishLabels: boolean;
 };
 
 export const EMPTY_COMPARE_FORM_DRAFT: CompareFormDraft = Object.freeze({
@@ -13,7 +12,6 @@ export const EMPTY_COMPARE_FORM_DRAFT: CompareFormDraft = Object.freeze({
   previewUrl: "",
   prUrl: "",
   protectionBypass: "",
-  polishLabels: false,
 });
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -23,8 +21,7 @@ export function isCompareFormDraftEmpty(draft: CompareFormDraft): boolean {
     !draft.baseUrl &&
     !draft.previewUrl &&
     !draft.prUrl &&
-    !draft.protectionBypass &&
-    !draft.polishLabels
+    !draft.protectionBypass
   );
 }
 
@@ -44,7 +41,6 @@ export function parseCompareFormDraft(raw: string | null): CompareFormDraft {
         typeof parsed.protectionBypass === "string"
           ? parsed.protectionBypass
           : "",
-      polishLabels: Boolean(parsed.polishLabels),
     };
     return isCompareFormDraftEmpty(draft) ? EMPTY_COMPARE_FORM_DRAFT : draft;
   } catch {

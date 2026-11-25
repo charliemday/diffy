@@ -173,12 +173,8 @@ export function ReviewWorkspace(props: Props) {
                 </p>
                 <p className="text-sm text-[var(--diffy-muted)] mt-0.5">
                   {empty
-                    ? pr
-                      ? "No PR-matched visual changes"
-                      : "No visual changes detected"
-                    : pr
-                      ? `${changes.length} in PR`
-                      : `${changes.length} visual change${changes.length === 1 ? "" : "s"}`}
+                    ? "No visual claims on this page"
+                    : `${changes.length} visual change${changes.length === 1 ? "" : "s"}`}
                 </p>
               </div>
               <kbd className="hidden sm:inline-flex items-center gap-1 rounded-md border border-[var(--diffy-line)] bg-white px-2 py-1 text-[10px] text-[var(--diffy-muted)] font-mono">
@@ -190,9 +186,9 @@ export function ReviewWorkspace(props: Props) {
           <div className="flex-1 min-h-[140px] px-2 py-2 overflow-hidden">
             {empty ? (
               <div className="h-full flex items-center justify-center px-4 text-center text-sm text-[var(--diffy-muted)]">
-                {pr
-                  ? "HTML diffs didn’t match any files in this pull request. Dynamic carousel content may have been filtered out — or the PR doesn’t touch this page’s copy/images."
-                  : "The two pages look the same in Diffy’s HTML diff — or the preview is a client-rendered shell with no content in the first HTML response."}
+                None of this PR’s visual claims were found on this page. They
+                may live on another URL, or the preview is a client-rendered
+                shell with no copy in the first HTML response.
               </div>
             ) : (
               <ChangeTimeline

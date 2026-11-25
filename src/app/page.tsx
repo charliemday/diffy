@@ -44,8 +44,9 @@ export default function HomePage() {
             Diffy
           </h1>
           <p className="mt-6 max-w-xl text-lg sm:text-xl text-[var(--diffy-muted)] leading-relaxed">
-            Paste a live page and a PR preview. Diffy finds copy, image, and
-            layout changes — then lets you step through them on the page.
+            Paste a GitHub pull request plus the live and preview URLs. Diffy
+            reads visual claims from the PR, finds them on the page, and lets
+            you step through the highlights.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Button
@@ -60,7 +61,7 @@ export default function HomePage() {
               </Link>
             </Button>
             <p className="text-sm text-[var(--diffy-muted)]">
-              Or compare two URLs below
+              Or review a pull request below
             </p>
           </div>
         </div>

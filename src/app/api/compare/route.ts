@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { diffDocuments } from "@/lib/dom-diff";
 import { fetchPageHtml } from "@/lib/fetch-page";
-import { polishChangeLabels } from "@/lib/ai-labels";
 import { newRunId, saveRun } from "@/lib/run-store";
 import type { PrCompanion, ReviewChange, ReviewRun } from "@/lib/review-types";
 import { assertSafePublicUrl } from "@/lib/ssrf";
@@ -11,9 +9,9 @@ import {
   toDiffyAssetUrl,
 } from "@/lib/vercel-bypass";
 import { fetchPullRequestInfo, parseGithubPrUrl } from "@/lib/github-pr";
-import { filterChangesToPullRequest } from "@/lib/pr-filter-changes";
-import { triageChangesWithLlm } from "@/lib/llm-diff-triage";
 import { readAccessTokenFromCookie } from "@/lib/github-oauth";
+import { extractVisualClaims } from "@/lib/pr-visual-claims";
+import { locateClaimsInHtml } from "@/lib/locate-claims";
 
 const COMPARE_LIMIT = 8;
 const COMPARE_WINDOW_MS = 60_000;
@@ -60,7 +58,6 @@ export async function POST(request: Request) {
   let body: {
     baseUrl?: string;
     previewUrl?: string;
-    polishLabels?: boolean;
     protectionBypass?: string;
     prUrl?: string;
   };
@@ -72,7 +69,6 @@ export async function POST(request: Request) {
 
   const baseUrl = body.baseUrl?.trim();
   const previewUrl = body.previewUrl?.trim();
-  const polishLabels = Boolean(body.polishLabels);
   const prUrlRaw = body.prUrl?.trim();
 
   let protectionBypass: string | undefined;
@@ -99,6 +95,12 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  if (!prUrlRaw) {
+    return NextResponse.json(
+      { error: "A GitHub pull request URL is required" },
+      { status: 400 },
+    );
+  }
 
   try {
     assertSafePublicUrl(baseUrl);
@@ -114,66 +116,38 @@ export async function POST(request: Request) {
   const fetchOpts = { protectionBypass };
 
   try {
-    const pagePromise = Promise.all([
-      fetchPageHtml(baseUrl, fetchOpts),
-      fetchPageHtml(previewUrl, fetchOpts),
-    ]);
-    const prPromise = prUrlRaw
-      ? fetchPullRequestInfo(prUrlRaw, { token: githubToken })
-      : Promise.resolve(null);
-
     const [[basePage, previewPage], prInfo] = await Promise.all([
-      pagePromise,
-      prPromise,
+      Promise.all([
+        fetchPageHtml(baseUrl, fetchOpts),
+        fetchPageHtml(previewUrl, fetchOpts),
+      ]),
+      fetchPullRequestInfo(prUrlRaw, { token: githubToken }),
     ]);
 
-    const { changes: rawChanges, afterHtml, pageTitle } = diffDocuments(
-      basePage.html,
-      previewPage.html,
-      { beforeUrl: basePage.finalUrl, afterUrl: previewPage.finalUrl },
-    );
+    const { claims } = await extractVisualClaims(prInfo);
+    const located = locateClaimsInHtml(claims, {
+      afterHtml: previewPage.html,
+      afterUrl: previewPage.finalUrl,
+    });
 
-    // Prefer LLM triage when OPENAI_API_KEY is configured so the model can
-    // inspect the PR diff + DOM candidates directly; fall back to heuristics.
-    const llmTriage = await triageChangesWithLlm(rawChanges, prInfo);
-
-    let changes: ReviewChange[];
-    let filteredOutCount = 0;
-
-    if (llmTriage) {
-      changes = llmTriage.changes;
-      filteredOutCount = llmTriage.filteredOutCount;
-    } else {
-      const polished = await polishChangeLabels(rawChanges, polishLabels);
-      if (prInfo) {
-        const filtered = filterChangesToPullRequest(polished, prInfo);
-        changes = filtered.changes;
-        filteredOutCount = filtered.filteredOutCount;
-      } else {
-        changes = polished;
-      }
-    }
-
-    let pr: PrCompanion | undefined;
-    if (prInfo) {
-      pr = {
-        url: prInfo.url,
-        owner: prInfo.owner,
-        repo: prInfo.repo,
-        number: prInfo.number,
-        title: prInfo.title,
-        headRef: prInfo.headRef,
-        baseRef: prInfo.baseRef,
-        files: prInfo.files.map((f) => ({
-          filename: f.filename,
-          status: f.status,
-          additions: f.additions,
-          deletions: f.deletions,
-          isMedia: f.isMedia,
-        })),
-        filteredOutCount,
-      };
-    }
+    let changes = located.changes;
+    const pr: PrCompanion = {
+      url: prInfo.url,
+      owner: prInfo.owner,
+      repo: prInfo.repo,
+      number: prInfo.number,
+      title: prInfo.title,
+      headRef: prInfo.headRef,
+      baseRef: prInfo.baseRef,
+      files: prInfo.files.map((f) => ({
+        filename: f.filename,
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        isMedia: f.isMedia,
+      })),
+      unlocatedCount: located.unlocatedCount,
+    };
 
     // Only route timeline images through /api/asset when a Vercel bypass
     // secret must stay server-side. Otherwise keep absolute origin URLs so
@@ -194,11 +168,11 @@ export async function POST(request: Request) {
       baseUrl: basePage.finalUrl,
       previewUrl: previewPage.finalUrl,
       pageUrl: previewPage.finalUrl,
-      pageTitle: pr ? pr.title : pageTitle,
+      pageTitle: pr.title,
       changes,
       status: "ready",
       beforeHtml: basePage.html,
-      afterHtml,
+      afterHtml: located.afterHtml,
       protectionBypass,
       pr,
     };
@@ -208,7 +182,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       runId: run.id,
       changeCount: changes.length,
-      filteredOutCount: pr?.filteredOutCount ?? 0,
+      unlocatedCount: pr.unlocatedCount,
     });
   } catch (err) {
     const message =
