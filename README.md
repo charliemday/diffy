@@ -15,14 +15,7 @@ Open [http://localhost:3456](http://localhost:3456).
 
 Set `OPENAI_API_KEY` so Diffy can extract visual claims from the PR.
 
-To log those calls in **Pretty Radar**, also set:
-
-```
-OPENAI_BASE_URL=https://helicone-light.charliemday31.workers.dev/v1
-PRETTY_RADAR_API_KEY=<workspace API key from Pretty Radar → Settings → API keys>
-```
-
-Diffy sends `Pretty-Radar-Auth` on the claims request. `OPENAI_API_KEY` stays the upstream OpenAI key (`Authorization`). Without the Radar URL/key, claims go straight to `api.openai.com` and will not show up in the Diffy workspace.
+To log those calls in **Pretty Radar**, also set `OPENAI_BASE_URL` and `PRETTY_RADAR_API_KEY` (see [Cloudflare env](#cloudflare-env) below). Diffy sends `Pretty-Radar-Auth` on the claims request. `OPENAI_API_KEY` stays the upstream OpenAI key (`Authorization`). Without the Radar URL/key, claims go straight to `api.openai.com` and will not show up in the Diffy workspace.
 
 ### Fixture pages
 
@@ -76,6 +69,30 @@ npm run deploy
 Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 Pushing to `main` on GitHub runs [`.github/workflows/deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) when those values are set as repository Actions secrets.
+
+### Cloudflare env
+
+Worker **secrets** persist across deploys. They are not GitHub Actions secrets.
+
+| Name | Kind | Notes |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | secret | Upstream OpenAI key (`Authorization`) |
+| `PRETTY_RADAR_API_KEY` | secret | Workspace key from Pretty Radar → Settings → API keys (`Pretty-Radar-Auth`) |
+| `OPENAI_BASE_URL` | plaintext var | `https://helicone-light.charliemday31.workers.dev/v1` (also in `wrangler.jsonc`) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | secret | OAuth |
+
+**Dashboard:** [Workers & Pages → `diffy` → Settings → Variables and Secrets](https://dash.cloudflare.com/?to=/:account/workers/services/view/diffy/production/settings). Add `OPENAI_BASE_URL` as a **text** variable. Add or rotate `PRETTY_RADAR_API_KEY` as an **encrypted secret**. Do not paste the key into chat.
+
+**CLI** (from this repo; uses `CLOUDFLARE_API_TOKEN`):
+
+```bash
+npx wrangler secret put PRETTY_RADAR_API_KEY --name diffy
+# paste the Pretty Radar workspace key when prompted
+
+# plaintext vars live in wrangler.jsonc and upload on the next `npm run deploy`
+```
+
+`wrangler secret put` updates the live worker immediately. `OPENAI_BASE_URL` in `wrangler.jsonc` applies on the next deploy to `main`. Production still hits `api.openai.com` until this branch is merged.
 
 ## Stack
 
