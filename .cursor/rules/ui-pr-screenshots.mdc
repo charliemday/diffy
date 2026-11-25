@@ -1,0 +1,30 @@
+---
+description: UI PRs must include screenshots of the changed screens
+alwaysApply: true
+---
+
+# UI pull request screenshots
+
+When a change affects anything a user can see (layout, styling, copy, a new screen, a dialog, empty/error states, or a user flow), the pull request must include screenshots of the updated UI.
+
+Do this every time. Do not wait to be asked.
+
+## What to attach
+
+- The changed screen in its primary state
+- Any new dialog, empty, error, or loading state the change introduces
+- Enough of the surrounding page that a reviewer can tell what changed
+
+Capture from the running app (browser), not a mock. Prefer PNG. Put files in `docs/screenshots/<short-change-name>/` on the PR branch and embed them in the PR description:
+
+```md
+## Screenshots
+
+![Home form](https://raw.githubusercontent.com/<owner>/<repo>/<branch>/docs/screenshots/<name>/home.png)
+```
+
+On GitHub, use that raw.githubusercontent.com URL (or upload the images in the PR body) so they render before merge.
+
+## Local helpers (development only)
+
+`http://localhost:3456/?shot=progress` and `?shot=bypass` open the review-progress dialog states so you can screenshot them without a live Vercel PR.
