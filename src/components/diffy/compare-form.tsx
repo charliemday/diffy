@@ -122,7 +122,9 @@ export function CompareForm() {
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
     const shot = new URLSearchParams(window.location.search).get("shot");
-    if (shot !== "bypass" && shot !== "progress") return;
+    if (shot !== "bypass" && shot !== "progress" && shot !== "fetch-error") {
+      return;
+    }
     const previewUrl = "https://site-git-feat.vercel.app/pricing";
     setDialogOpen(true);
     setSubtitle("acme/site #42 · Update hero headline");
@@ -139,6 +141,20 @@ export function CompareForm() {
           { pr: "done", urls: "done", bypass: "waiting" },
           { urls: previewUrl },
         ),
+      );
+      return;
+    }
+    if (shot === "fetch-error") {
+      setDialogError(
+        "Fetch failed (404) for https://site-git-feat.vercel.app/About. The preview may use /about instead.",
+      );
+      setSteps(
+        makeSteps(false, {
+          pr: "done",
+          urls: "done",
+          claims: "done",
+          fetch: "error",
+        }),
       );
       return;
     }
@@ -486,6 +502,11 @@ export function CompareForm() {
             const message =
               err instanceof Error ? err.message : "Compare failed";
             setDialogError(message);
+            setSteps((prev) =>
+              prev.map((step) =>
+                step.state === "active" ? { ...step, state: "error" } : step,
+              ),
+            );
             setLoading(false);
           });
         }}
@@ -496,6 +517,11 @@ export function CompareForm() {
             const message =
               err instanceof Error ? err.message : "Compare failed";
             setDialogError(message);
+            setSteps((prev) =>
+              prev.map((step) =>
+                step.state === "active" ? { ...step, state: "error" } : step,
+              ),
+            );
             setLoading(false);
           });
         }}

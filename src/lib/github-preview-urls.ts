@@ -70,7 +70,59 @@ export function applyPagePath(siteUrl: string, pagePath: string): string {
   return url.toString();
 }
 
-export function inferPagePath(files: { filename: string }[]): string {
+function toRouteSegment(seg: string): string {
+  if (!seg || seg.startsWith("[") || seg.startsWith("(") || seg.startsWith("@")) {
+    return seg;
+  }
+  return seg.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
+function toRoutePath(segments: string[]): string {
+  const segs = segments.map(toRouteSegment).filter(Boolean);
+  return segs.length ? `/${segs.join("/")}` : "/";
+}
+
+/** Paths added in the PR patch (React Router, routes-manifest, PAGE_PATH). */
+export function inferRoutesFromPatches(
+  files: { filename: string; patch?: string }[],
+): string[] {
+  const fromRouter = new Set<string>();
+  const fromManifest = new Set<string>();
+
+  for (const file of files) {
+    const patch = file.patch;
+    if (!patch) continue;
+    const name = file.filename.replace(/\\/g, "/");
+
+    for (const rawLine of patch.split("\n")) {
+      if (!rawLine.startsWith("+") || rawLine.startsWith("+++")) continue;
+      const line = rawLine.slice(1);
+
+      if (/(?:^|\/)(App|router)\.(t|j)sx$/i.test(name)) {
+        const route = line.match(/<Route\s+path=["'`](\/[^"'`*]*)["'`]/);
+        if (route && !/element=\{<Navigate\b/.test(line)) {
+          fromRouter.add(normalizePagePath(route[1].toLowerCase()));
+        }
+      }
+
+      if (/routes-manifest\.json$/i.test(name)) {
+        const quoted = line.match(/^\s*"(\/[-a-zA-Z0-9_/]*)"\s*,?\s*$/);
+        if (quoted) fromManifest.add(normalizePagePath(quoted[1].toLowerCase()));
+      }
+    }
+  }
+
+  if (fromRouter.size === 1) return [...fromRouter];
+  if (fromManifest.size === 1) return [...fromManifest];
+  return [];
+}
+
+export function inferPagePath(
+  files: { filename: string; patch?: string }[],
+): string {
+  const fromPatch = inferRoutesFromPatches(files);
+  if (fromPatch.length === 1) return fromPatch[0];
+
   const routes = new Set<string>();
   for (const file of files) {
     const route = routeFromFilename(file.filename);
@@ -88,7 +140,7 @@ export function routeFromFilename(filename: string): string | null {
     const segs = appPage[1]
       .split("/")
       .filter((s) => s && !s.startsWith("(") && !s.startsWith("@"));
-    return segs.length ? `/${segs.join("/")}` : "/";
+    return toRoutePath(segs);
   }
 
   const pagesFile = n.match(/(?:^|\/)pages\/(.+)\.(?:t|j)sx$/);
@@ -97,9 +149,9 @@ export function routeFromFilename(filename: string): string | null {
     if (p.startsWith("api/") || p.startsWith("_")) return null;
     if (/^index$/i.test(p) || /\/index$/i.test(p)) {
       p = p.replace(/\/index$/i, "").replace(/^index$/i, "");
-      return p ? `/${p}` : "/";
+      return p ? toRoutePath(p.split("/")) : "/";
     }
-    return `/${p}`;
+    return toRoutePath(p.split("/"));
   }
 
   return null;

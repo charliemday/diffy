@@ -38,6 +38,8 @@ describe("page path helpers", () => {
     );
     assert.equal(routeFromFilename("src/pages/Index.tsx"), "/");
     assert.equal(routeFromFilename("src/pages/team.tsx"), "/team");
+    assert.equal(routeFromFilename("src/pages/About.tsx"), "/about");
+    assert.equal(routeFromFilename("src/app/About/page.tsx"), "/about");
     assert.equal(routeFromFilename("src/Hero.tsx"), null);
 
     assert.equal(
@@ -50,6 +52,29 @@ describe("page path helpers", () => {
         { filename: "src/app/pricing/page.tsx" },
       ]),
       "/",
+    );
+    assert.equal(
+      inferPagePath([{ filename: "src/pages/About.tsx" }]),
+      "/about",
+    );
+    assert.equal(
+      inferPagePath([
+        {
+          filename: "src/App.tsx",
+          patch: `@@\n-          <Route path="/our-story" element={<OurStory />} />\n+          <Route path="/about" element={<About />} />\n+          <Route path="/our-story" element={<Navigate to="/about" replace />} />\n`,
+        },
+        { filename: "src/pages/About.tsx" },
+      ]),
+      "/about",
+    );
+    assert.equal(
+      inferPagePath([
+        {
+          filename: "routes-manifest.json",
+          patch: `@@\n   "routes": [\n     "/",\n+    "/about",\n     "/ai-info",\n`,
+        },
+      ]),
+      "/about",
     );
   });
 
