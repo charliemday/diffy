@@ -1,4 +1,4 @@
-import type { PullRequestInfo } from "@/lib/github-pr";
+import type { PrFileChange, PullRequestInfo } from "@/lib/github-pr";
 
 export type VisualClaim = {
   kind: "copy" | "image" | "layout";
@@ -15,9 +15,12 @@ export type VisualClaimsResult = {
   claims: VisualClaim[];
 };
 
-const MAX_PATCH_CHARS = 16_000;
-const MAX_FILE_PATCH_CHARS = 2_500;
+/** Total patch characters sent to the model across all files. */
+export const MAX_PATCH_CHARS = 40_000;
+/** Soft cap per file; large patches keep head + tail so JSX returns survive. */
+export const MAX_FILE_PATCH_CHARS = 6_000;
 const MAX_CLAIMS = 40;
+const MAX_PAYLOAD_FILES = 40;
 const DEFAULT_MODEL = "gpt-5.6-luna";
 /** Large marketing PRs + Pretty Radar hop often exceed 15s on gpt-5.6-luna. */
 const DEFAULT_CLAIMS_TIMEOUT_MS = 90_000;
@@ -25,16 +28,133 @@ const DEFAULT_OPENAI_BASE = "https://api.openai.com/v1";
 const DEFAULT_PRETTY_RADAR_URL =
   "https://helicone-light.charliemday31.workers.dev";
 
+const PATCH_TRUNCATION_MARKER = "\n... [truncated] ...\n";
+
 function cleanEnv(value: string | undefined): string {
   return (value ?? "").trim().replace(/^[`'"]+|[`'"]+$/g, "").trim();
 }
 
+function basenameOf(filename: string): string {
+  const parts = filename.replace(/\\/g, "/").split("/");
+  return parts[parts.length - 1] || filename;
+}
+
+/**
+ * Lockfiles, generated manifests/sitemaps, package.json, tests, and tooling
+ * configs burn patch budget without helping visual claim extraction.
+ */
+export function isNoiseFile(filename: string): boolean {
+  const name = filename.replace(/\\/g, "/");
+  const base = basenameOf(name).toLowerCase();
+
+  if (
+    base === "package-lock.json" ||
+    base === "npm-shrinkwrap.json" ||
+    base === "yarn.lock" ||
+    base === "pnpm-lock.yaml" ||
+    base === "bun.lock" ||
+    base === "bun.lockb" ||
+    base === "composer.lock" ||
+    base === "cargo.lock" ||
+    base === "poetry.lock" ||
+    base === "package.json" ||
+    base === "robots.txt"
+  ) {
+    return true;
+  }
+
+  if (/sitemap[^/]*\.(xml|txt)$/i.test(base)) return true;
+  if (/manifest[^/]*\.json$/i.test(base)) return true;
+  if (/^tsconfig(\..+)?\.json$/i.test(base)) return true;
+  if (/^eslint(\.|$)/i.test(base)) return true;
+  if (/^prettier(\.|$)/i.test(base)) return true;
+  if (/\.(test|spec)\.[cm]?[jt]sx?$/i.test(base)) return true;
+  if (/(^|\/)(__tests__|__mocks__|\.github|\.husky|\.vscode)\//i.test(name)) {
+    return true;
+  }
+  if (/\.(yml|yaml)$/i.test(base) && /(^|\/)(\.github|ci|deploy)\//i.test(name)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Lower number = higher priority when allocating the shared patch budget.
+ * Pages/components/content beat scripts, CSS, and leftover config.
+ */
+export function patchPriority(
+  file: Pick<PrFileChange, "filename" | "isMedia">,
+): number {
+  const name = file.filename.replace(/\\/g, "/");
+  const base = basenameOf(name).toLowerCase();
+
+  if (file.isMedia) return 1;
+
+  if (
+    /(^|\/)(pages|app|components|views|screens)\//i.test(name) ||
+    /\.(tsx|jsx)$/i.test(base)
+  ) {
+    return 0;
+  }
+
+  if (
+    /(^|\/)(content|data|copy|locales?|i18n|messages|translations)\//i.test(
+      name,
+    ) ||
+    /\.(mdx?|md)$/i.test(base)
+  ) {
+    return 0;
+  }
+
+  // Content/i18n JSON (not already filtered as noise manifests).
+  if (/\.json$/i.test(base)) return 1;
+
+  if (/\.css$/i.test(base)) return 2;
+
+  return 3;
+}
+
+/**
+ * Prefer the start (imports / added markers) and end (JSX return) of large
+ * component patches so visible markup is not the first thing truncated.
+ */
+export function slicePatch(
+  patch: string,
+  maxChars: number,
+): string {
+  if (patch.length <= maxChars) return patch;
+  if (maxChars <= PATCH_TRUNCATION_MARKER.length + 32) {
+    return patch.slice(0, maxChars);
+  }
+
+  const usable = maxChars - PATCH_TRUNCATION_MARKER.length;
+  const headLen = Math.floor(usable * 0.35);
+  const tailLen = usable - headLen;
+  return (
+    patch.slice(0, headLen) +
+    PATCH_TRUNCATION_MARKER +
+    patch.slice(patch.length - tailLen)
+  );
+}
+
 export function buildPrPayload(pr: PullRequestInfo) {
+  const ranked = pr.files
+    .filter((f) => !isNoiseFile(f.filename))
+    .slice()
+    .sort((a, b) => {
+      const diff = patchPriority(a) - patchPriority(b);
+      if (diff !== 0) return diff;
+      return a.filename.localeCompare(b.filename);
+    })
+    .slice(0, MAX_PAYLOAD_FILES);
+
   let budget = MAX_PATCH_CHARS;
-  const files = pr.files.slice(0, 40).map((f) => {
+  const files = ranked.map((f) => {
     let patch: string | undefined;
     if (f.patch && budget > 0) {
-      const slice = f.patch.slice(0, Math.min(MAX_FILE_PATCH_CHARS, budget));
+      const allowance = Math.min(MAX_FILE_PATCH_CHARS, budget);
+      const slice = slicePatch(f.patch, allowance);
       patch = slice;
       budget -= slice.length;
     }
@@ -187,9 +307,11 @@ export async function extractVisualClaims(
     "Read the pull request diff and list only user-visible visual changes:",
     "- copy: wording a visitor would read",
     "- image: added, replaced, or removed image assets",
-    "- layout: new or removed UI sections",
+    "- layout: new or removed UI sections (one claim per section, not per line inside it)",
     "Ignore lockfiles, dependency churn, formatting/lint/prettier, tests, CI, comments, and refactors whose visible output is unchanged.",
+    "Emit one layout claim per distinct new UI section (timeline, grid, hero, founders, press strip, etc.) instead of collapsing several sections into a single page-level claim.",
     "before/after must be exact visible strings or image filenames from the diff. Never invent copy.",
+    "For layout claims, prefer the section heading or another distinctive phrase from that section as after/before.",
     "Keep labels concise (<= 6 words) and descriptions to 1 short sentence.",
     'Return strict JSON: {"summary":"1 short sentence","claims":[{"kind":"copy|image|layout","label":"...","description":"...","before":"...","after":"..."}]}',
     "If there are no user-visible changes, return {\"summary\":\"...\",\"claims\":[]}.",
