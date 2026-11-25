@@ -163,7 +163,9 @@ async function githubJson<T>(
 }
 
 export async function resolvePrSiteUrls(
-  pr: Pick<PullRequestInfo, "owner" | "repo" | "headSha" | "files">,
+  pr: Pick<PullRequestInfo, "owner" | "repo" | "headSha"> & {
+    files: { filename: string }[];
+  },
   opts: ResolvePrSiteUrlsOptions = {},
 ): Promise<ResolvedPrSiteUrls> {
   const fetchImpl = opts.fetchImpl ?? fetch;
