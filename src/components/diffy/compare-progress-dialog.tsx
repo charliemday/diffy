@@ -208,7 +208,7 @@ export function CompareProgressDialog({
                               href={VERCEL_BYPASS_SETTINGS_URL}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--diffy-accent)] underline-offset-2 hover:underline"
+                              className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-[var(--diffy-accent)] underline-offset-2 hover:underline"
                             >
                               Open Vercel Deployment Protection settings
                               <ExternalLink className="size-3.5" />

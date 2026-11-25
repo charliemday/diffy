@@ -103,4 +103,9 @@
   html {
     @apply font-sans;
   }
+  /* Tailwind preflight sets cursor: default on buttons — restore the clickable cue. */
+  button:where(:not(:disabled)),
+  [role="button"]:where(:not([aria-disabled="true"])) {
+    @apply cursor-pointer;
+  }
 }

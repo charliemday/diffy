@@ -97,7 +97,7 @@ export function ReviewWorkspace(props: Props) {
           <div className="flex items-center gap-4 min-w-0">
             <Link
               href="/"
-              className="font-[family-name:var(--font-display)] text-xl tracking-tight font-semibold shrink-0"
+              className="cursor-pointer font-[family-name:var(--font-display)] text-xl tracking-tight font-semibold shrink-0"
             >
               Diffy
             </Link>

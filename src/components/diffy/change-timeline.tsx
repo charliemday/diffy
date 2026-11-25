@@ -54,7 +54,7 @@ export function ChangeTimeline({
                 type="button"
                 onClick={() => onSelect(change.id)}
                 className={cn(
-                  "group relative w-full text-left rounded-lg pl-10 pr-3 py-3 transition-colors duration-200",
+                  "group relative w-full cursor-pointer text-left rounded-lg pl-10 pr-3 py-3 transition-colors duration-200",
                   active
                     ? "bg-[var(--diffy-surface-strong)]"
                     : "hover:bg-[var(--diffy-surface)]",

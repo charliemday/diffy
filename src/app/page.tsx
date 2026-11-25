@@ -29,7 +29,7 @@ export default function HomePage() {
         </div>
         <Link
           href="/review/demo"
-          className="text-sm text-[var(--diffy-muted)] hover:text-[var(--diffy-ink)] transition-colors"
+          className="cursor-pointer text-sm text-[var(--diffy-muted)] hover:text-[var(--diffy-ink)] transition-colors"
         >
           Open demo
         </Link>

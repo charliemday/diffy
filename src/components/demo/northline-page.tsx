@@ -98,7 +98,7 @@ export function NorthlinePage({
           >
             <button
               type="button"
-              className="rounded-md bg-[var(--nl-accent)] text-white px-5 py-2.5 text-sm font-medium"
+              className="cursor-pointer rounded-md bg-[var(--nl-accent)] text-white px-5 py-2.5 text-sm font-medium"
             >
               {cta}
             </button>

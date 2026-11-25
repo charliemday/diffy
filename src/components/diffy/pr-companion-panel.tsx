@@ -20,7 +20,7 @@ export function PrCompanionPanel({ pr }: { pr: PrCompanion }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-start justify-between gap-2 px-4 py-3 text-left hover:bg-white/40 transition-colors"
+        className="flex w-full cursor-pointer items-start justify-between gap-2 px-4 py-3 text-left hover:bg-white/40 transition-colors"
       >
         <div className="min-w-0">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--diffy-muted)]">
@@ -51,7 +51,7 @@ export function PrCompanionPanel({ pr }: { pr: PrCompanion }) {
               href={pr.url}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-1 text-sm font-medium text-[var(--diffy-ink)] hover:text-[var(--diffy-accent)] truncate"
+              className="flex cursor-pointer items-center gap-1 text-sm font-medium text-[var(--diffy-ink)] hover:text-[var(--diffy-accent)] truncate"
             >
               <span className="truncate">
                 #{pr.number} {pr.title}
