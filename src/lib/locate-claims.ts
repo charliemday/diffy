@@ -185,6 +185,112 @@ function stampSelector(el: HTMLElement, fallback: string): string {
   return fallback;
 }
 
+/** Semantic blocks that usually represent a whole UI section / list item. */
+const LAYOUT_SECTION_TAGS = new Set([
+  "section",
+  "article",
+  "li",
+  "aside",
+  "figure",
+  "header",
+  "footer",
+  "nav",
+  "main",
+]);
+
+/** Block wrappers we may climb into when there is no semantic section tag. */
+const LAYOUT_BLOCK_TAGS = new Set([
+  ...LAYOUT_SECTION_TAGS,
+  "div",
+  "ul",
+  "ol",
+  "dl",
+  "table",
+]);
+
+const INLINE_TAGS = new Set([
+  "span",
+  "strong",
+  "em",
+  "b",
+  "i",
+  "small",
+  "a",
+  "time",
+  "abbr",
+  "mark",
+  "code",
+  "label",
+]);
+
+const HEADING_TAGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
+
+/**
+ * Layout claims describe whole new/removed sections, but text matching lands on
+ * a heading or deep leaf. Climb to a section-sized container so the highlight
+ * outlines the block, not just the title.
+ */
+export function expandToLayoutContainer(el: HTMLElement): HTMLElement {
+  let cur: HTMLElement = el;
+  let fallbackBlock: HTMLElement | null = null;
+  let headingSiblingBlock: HTMLElement | null = null;
+
+  // Always leave inline / phrasing leaves (e.g. <span>2022</span>).
+  while (INLINE_TAGS.has(cur.tagName?.toLowerCase() ?? "")) {
+    const parent = cur.parentNode as HTMLElement | null;
+    if (!parent?.tagName) break;
+    const pTag = parent.tagName.toLowerCase();
+    if (pTag === "body" || pTag === "html") break;
+    cur = parent;
+  }
+
+  const hitIsHeading = HEADING_TAGS.has(cur.tagName?.toLowerCase() ?? "");
+
+  let walk: HTMLElement = cur;
+  while (true) {
+    const parent = walk.parentNode as HTMLElement | null;
+    if (!parent?.tagName) break;
+    const pTag = parent.tagName.toLowerCase();
+    if (pTag === "body" || pTag === "html") break;
+
+    if (LAYOUT_SECTION_TAGS.has(pTag)) {
+      return parent;
+    }
+
+    if (LAYOUT_BLOCK_TAGS.has(pTag)) {
+      const childEls = parent.childNodes.filter(
+        (n) => n.nodeType === 1,
+      ) as HTMLElement[];
+      if (childEls.length >= 2) {
+        const parentText = collapseWhitespace(parent.text);
+        const hitText = collapseWhitespace(el.text);
+        // Innermost wrapper that groups more than the matched leaf.
+        if (
+          !fallbackBlock &&
+          (parentText.length > hitText.length + 24 ||
+            parentText.length > hitText.length * 1.4)
+        ) {
+          fallbackBlock = parent;
+        }
+
+        // Heading + following siblings (timeline list, cards, etc.) — prefer
+        // that wrapper even when there is no <section> tag.
+        if (
+          hitIsHeading &&
+          !headingSiblingBlock &&
+          childEls.some((child) => child !== walk && !HEADING_TAGS.has(child.tagName?.toLowerCase() ?? ""))
+        ) {
+          headingSiblingBlock = parent;
+        }
+      }
+    }
+
+    walk = parent;
+  }
+
+  return headingSiblingBlock ?? fallbackBlock ?? cur;
+}
+
 function absolutizeUrl(value: string, pageUrl?: string): string {
   if (!pageUrl || !value || value.startsWith("data:")) return value;
   try {
@@ -258,8 +364,10 @@ export function locateClaimsInHtml(
       unlocatedCount += 1;
       continue;
     }
+    const target =
+      claim.kind === "layout" ? expandToLayoutContainer(hit.el) : hit.el;
     const id = `chg_${changes.length + 1}`;
-    const selector = stampSelector(hit.el, id);
+    const selector = stampSelector(target, id);
     changes.push({
       id,
       kind: claim.kind,
@@ -267,7 +375,13 @@ export function locateClaimsInHtml(
       description: claim.description,
       selector,
       before: { text: claim.before || "(section missing)" },
-      after: { text: claim.after || hit.text },
+      after: {
+        text:
+          claim.after ||
+          (claim.kind === "layout"
+            ? collapseWhitespace(target.text).slice(0, 280)
+            : hit.text),
+      },
     });
   }
 
