@@ -19,6 +19,9 @@ const MAX_PATCH_CHARS = 16_000;
 const MAX_FILE_PATCH_CHARS = 2_500;
 const MAX_CLAIMS = 40;
 const DEFAULT_MODEL = "gpt-5.6-luna";
+const DEFAULT_OPENAI_BASE = "https://api.openai.com/v1";
+const DEFAULT_PRETTY_RADAR_URL =
+  "https://helicone-light.charliemday31.workers.dev";
 
 function cleanEnv(value: string | undefined): string {
   return (value ?? "").trim().replace(/^[`'"]+|[`'"]+$/g, "").trim();
@@ -48,6 +51,43 @@ export function buildPrPayload(pr: PullRequestInfo) {
     headRef: pr.headRef,
     baseRef: pr.baseRef,
     files,
+  };
+}
+
+function joinUrl(base: string, path: string): string {
+  return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
+/** OpenAI-compatible chat completions URL. Pretty Radar when configured. */
+export function openaiChatCompletionsUrl(opts?: {
+  baseUrl?: string;
+  radarUrl?: string;
+  radarKey?: string;
+}): string {
+  const explicit = cleanEnv(opts?.baseUrl ?? process.env.OPENAI_BASE_URL);
+  if (explicit) return joinUrl(explicit, "chat/completions");
+
+  const radarKey = cleanEnv(
+    opts?.radarKey ?? process.env.PRETTY_RADAR_API_KEY,
+  );
+  const radarUrl = cleanEnv(
+    opts?.radarUrl ?? process.env.PRETTY_RADAR_URL,
+  );
+  if (radarKey || radarUrl) {
+    const root = radarUrl || DEFAULT_PRETTY_RADAR_URL;
+    return joinUrl(root, "v1/chat/completions");
+  }
+
+  return joinUrl(DEFAULT_OPENAI_BASE, "chat/completions");
+}
+
+function radarAuthHeaders(radarKey: string | undefined): Record<string, string> {
+  if (!radarKey) return {};
+  return {
+    "Pretty-Radar-Auth": `Bearer ${radarKey}`,
+    "Pretty-Radar-Property-Step": "extract-visual-claims",
+    "Pretty-Radar-Property-Environment":
+      process.env.NODE_ENV === "production" ? "production" : "development",
   };
 }
 
@@ -96,6 +136,9 @@ export async function extractVisualClaims(
     apiKey?: string;
     model?: string;
     fetchImpl?: typeof fetch;
+    baseUrl?: string;
+    radarUrl?: string;
+    radarKey?: string;
   },
 ): Promise<VisualClaimsResult> {
   const key = cleanEnv(opts?.apiKey ?? process.env.OPENAI_API_KEY);
@@ -107,6 +150,12 @@ export async function extractVisualClaims(
 
   const model = cleanEnv(opts?.model ?? process.env.OPENAI_MODEL) || DEFAULT_MODEL;
   const fetchFn = opts?.fetchImpl ?? fetch;
+  const radarKey = cleanEnv(opts?.radarKey ?? process.env.PRETTY_RADAR_API_KEY);
+  const completionsUrl = openaiChatCompletionsUrl({
+    baseUrl: opts?.baseUrl,
+    radarUrl: opts?.radarUrl,
+    radarKey,
+  });
 
   const systemPrompt = [
     "You are Diffy, a visual PR reviewer for marketing web pages.",
@@ -121,11 +170,12 @@ export async function extractVisualClaims(
     "If there are no user-visible changes, return {\"summary\":\"...\",\"claims\":[]}.",
   ].join("\n");
 
-  const res = await fetchFn("https://api.openai.com/v1/chat/completions", {
+  const res = await fetchFn(completionsUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
+      ...radarAuthHeaders(radarKey),
     },
     body: JSON.stringify({
       model,

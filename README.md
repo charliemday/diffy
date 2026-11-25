@@ -15,6 +15,15 @@ Open [http://localhost:3456](http://localhost:3456).
 
 Set `OPENAI_API_KEY` so Diffy can extract visual claims from the PR.
 
+To log those calls in **Pretty Radar**, also set:
+
+```
+OPENAI_BASE_URL=https://helicone-light.charliemday31.workers.dev/v1
+PRETTY_RADAR_API_KEY=<workspace API key from Pretty Radar → Settings → API keys>
+```
+
+Diffy sends `Pretty-Radar-Auth` on the claims request. `OPENAI_API_KEY` stays the upstream OpenAI key (`Authorization`). Without the Radar URL/key, claims go straight to `api.openai.com` and will not show up in the Diffy workspace.
+
 ### Fixture pages
 
 With the dev server running, `POST /api/compare` still accepts optional `baseUrl` / `previewUrl` overrides for local fixtures:

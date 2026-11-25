@@ -33,9 +33,45 @@ function looksLikeVercelAuthWall(html: string, status: number): boolean {
   );
 }
 
-export async function fetchPageHtml(
+export function lowercasePathname(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    const lower = url.pathname.toLowerCase();
+    if (lower === url.pathname) return null;
+    url.pathname = lower;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+class FetchPageError extends Error {
+  status?: number;
+  url: string;
+  constructor(message: string, url: string, status?: number) {
+    super(message);
+    this.url = url;
+    this.status = status;
+  }
+}
+
+function fetchFailedMessage(status: number, url: string): string {
+  let msg = `Fetch failed (${status}) for ${url}`;
+  try {
+    const parsed = new URL(url);
+    if (parsed.pathname !== parsed.pathname.toLowerCase()) {
+      msg += `. The preview may use ${parsed.pathname.toLowerCase()} instead.`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return msg;
+}
+
+async function fetchPageHtmlOnce(
   rawUrl: string,
-  opts: FetchPageOptions = {},
+  opts: FetchPageOptions,
+  fetchImpl: typeof fetch,
 ): Promise<FetchedPage> {
   let current = await assertUrlFully(rawUrl);
   const controller = new AbortController();
@@ -44,7 +80,7 @@ export async function fetchPageHtml(
 
   try {
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      const res = await fetch(current.toString(), {
+      const res = await fetchImpl(current.toString(), {
         method: "GET",
         redirect: "manual",
         signal: controller.signal,
@@ -79,13 +115,19 @@ export async function fetchPageHtml(
 
       if (!res.ok || looksLikeVercelAuthWall(html, res.status)) {
         if (looksLikeVercelAuthWall(html, res.status)) {
-          throw new Error(
+          throw new FetchPageError(
             opts.protectionBypass
               ? `Preview still looks auth-gated (${res.status}). Check the Vercel bypass secret.`
               : `Preview is auth-gated (${res.status}). Add a Vercel Protection Bypass secret.`,
+            current.toString(),
+            res.status,
           );
         }
-        throw new Error(`Fetch failed (${res.status}) for ${current.hostname}`);
+        throw new FetchPageError(
+          fetchFailedMessage(res.status, current.toString()),
+          current.toString(),
+          res.status,
+        );
       }
 
       await assertUrlFully(res.url || current.toString());
@@ -104,13 +146,39 @@ export async function fetchPageHtml(
       };
     }
 
-    throw new Error("Too many redirects");
+    throw new FetchPageError("Too many redirects", current.toString());
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error(`Timed out fetching ${current.hostname}`);
+      throw new FetchPageError(
+        `Timed out fetching ${current.toString()}`,
+        current.toString(),
+      );
     }
     throw err;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+export async function fetchPageHtml(
+  rawUrl: string,
+  opts: FetchPageOptions = {},
+  fetchImpl: typeof fetch = fetch,
+): Promise<FetchedPage> {
+  try {
+    return await fetchPageHtmlOnce(rawUrl, opts, fetchImpl);
+  } catch (err) {
+    const lower = lowercasePathname(rawUrl);
+    const is404 =
+      err instanceof FetchPageError &&
+      err.status === 404 &&
+      lower &&
+      lower !== rawUrl;
+    if (!is404) throw err;
+    try {
+      return await fetchPageHtmlOnce(lower, opts, fetchImpl);
+    } catch {
+      throw err;
+    }
   }
 }

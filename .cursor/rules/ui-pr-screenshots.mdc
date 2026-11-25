@@ -27,4 +27,4 @@ On GitHub, use that raw.githubusercontent.com URL (or upload the images in the P
 
 ## Local helpers (development only)
 
-`http://localhost:3456/?shot=progress` and `?shot=bypass` open the review-progress dialog states so you can screenshot them without a live Vercel PR.
+`http://localhost:3456/?shot=progress`, `?shot=bypass`, and `?shot=fetch-error` open the review-progress dialog states so you can screenshot them without a live Vercel PR.

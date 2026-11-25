@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildPrPayload,
   extractVisualClaims,
+  openaiChatCompletionsUrl,
 } from "./pr-visual-claims";
 import type { PullRequestInfo } from "./github-pr";
 
@@ -50,6 +51,25 @@ describe("buildPrPayload", () => {
   });
 });
 
+describe("openaiChatCompletionsUrl", () => {
+  it("uses OPENAI_BASE_URL when set", () => {
+    assert.equal(
+      openaiChatCompletionsUrl({ baseUrl: "https://helicone-light.example/v1" }),
+      "https://helicone-light.example/v1/chat/completions",
+    );
+  });
+
+  it("routes through Pretty Radar when a radar key is present", () => {
+    assert.equal(
+      openaiChatCompletionsUrl({
+        radarKey: "radar-test",
+        radarUrl: "https://helicone-light.example",
+      }),
+      "https://helicone-light.example/v1/chat/completions",
+    );
+  });
+});
+
 describe("extractVisualClaims", () => {
   it("throws when API key is missing", async () => {
     await assert.rejects(
@@ -59,7 +79,8 @@ describe("extractVisualClaims", () => {
   });
 
   it("returns claims from the model and drops junk entries", async () => {
-    const fakeFetch: typeof fetch = async (_url, init) => {
+    const fakeFetch: typeof fetch = async (input, init) => {
+      assert.match(String(input), /chat\/completions/);
       const body = JSON.parse(String(init?.body)) as {
         messages: { content: string }[];
       };
@@ -99,6 +120,7 @@ describe("extractVisualClaims", () => {
     const res = await extractVisualClaims(samplePr, {
       apiKey: "sk-test",
       fetchImpl: fakeFetch,
+      baseUrl: "https://api.openai.com/v1",
     });
     assert.equal(res.claims.length, 1);
     assert.equal(res.claims[0].after, "Prompt to Perfection");
