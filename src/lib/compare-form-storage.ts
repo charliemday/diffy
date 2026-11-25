@@ -1,28 +1,22 @@
-export const COMPARE_FORM_STORAGE_KEY = "diffy.compareForm.v2";
+export const COMPARE_FORM_STORAGE_KEY = "diffy.compareForm.v3";
+const LEGACY_COMPARE_FORM_STORAGE_KEY = "diffy.compareForm.v2";
 
 export type CompareFormDraft = {
-  baseUrl: string;
-  previewUrl: string;
   prUrl: string;
+  pagePath: string;
   protectionBypass: string;
 };
 
 export const EMPTY_COMPARE_FORM_DRAFT: CompareFormDraft = Object.freeze({
-  baseUrl: "",
-  previewUrl: "",
   prUrl: "",
+  pagePath: "",
   protectionBypass: "",
 });
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export function isCompareFormDraftEmpty(draft: CompareFormDraft): boolean {
-  return (
-    !draft.baseUrl &&
-    !draft.previewUrl &&
-    !draft.prUrl &&
-    !draft.protectionBypass
-  );
+  return !draft.prUrl && !draft.pagePath && !draft.protectionBypass;
 }
 
 export function parseCompareFormDraft(raw: string | null): CompareFormDraft {
@@ -33,10 +27,8 @@ export function parseCompareFormDraft(raw: string | null): CompareFormDraft {
       return EMPTY_COMPARE_FORM_DRAFT;
     }
     const draft: CompareFormDraft = {
-      baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl : "",
-      previewUrl:
-        typeof parsed.previewUrl === "string" ? parsed.previewUrl : "",
       prUrl: typeof parsed.prUrl === "string" ? parsed.prUrl : "",
+      pagePath: typeof parsed.pagePath === "string" ? parsed.pagePath : "",
       protectionBypass:
         typeof parsed.protectionBypass === "string"
           ? parsed.protectionBypass
@@ -53,7 +45,13 @@ export function loadCompareFormDraft(
 ): CompareFormDraft {
   if (!storage) return EMPTY_COMPARE_FORM_DRAFT;
   try {
-    return parseCompareFormDraft(storage.getItem(COMPARE_FORM_STORAGE_KEY));
+    const current = parseCompareFormDraft(
+      storage.getItem(COMPARE_FORM_STORAGE_KEY),
+    );
+    if (!isCompareFormDraftEmpty(current)) return current;
+    return parseCompareFormDraft(
+      storage.getItem(LEGACY_COMPARE_FORM_STORAGE_KEY),
+    );
   } catch {
     return EMPTY_COMPARE_FORM_DRAFT;
   }
@@ -69,6 +67,7 @@ export function writeCompareFormDraft(
   if (!storage) return serialized;
   if (serialized === null) {
     storage.removeItem(COMPARE_FORM_STORAGE_KEY);
+    storage.removeItem(LEGACY_COMPARE_FORM_STORAGE_KEY);
   } else {
     storage.setItem(COMPARE_FORM_STORAGE_KEY, serialized);
   }
@@ -103,7 +102,9 @@ export function getCompareFormSnapshot(): CompareFormDraft {
   const storage = browserStorage();
   if (!storage) return fallbackDraft ?? EMPTY_COMPARE_FORM_DRAFT;
   try {
-    const raw = storage.getItem(COMPARE_FORM_STORAGE_KEY);
+    const raw =
+      storage.getItem(COMPARE_FORM_STORAGE_KEY) ??
+      storage.getItem(LEGACY_COMPARE_FORM_STORAGE_KEY);
     if (raw === cachedRaw) return cachedDraft;
     cachedRaw = raw;
     cachedDraft = parseCompareFormDraft(raw);
@@ -117,7 +118,11 @@ export function getCompareFormSnapshot(): CompareFormDraft {
 export function subscribeCompareFormDraft(listener: () => void): () => void {
   listeners.add(listener);
   const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === COMPARE_FORM_STORAGE_KEY) {
+    if (
+      event.key === null ||
+      event.key === COMPARE_FORM_STORAGE_KEY ||
+      event.key === LEGACY_COMPARE_FORM_STORAGE_KEY
+    ) {
       emitChange();
     }
   };

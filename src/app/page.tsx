@@ -44,9 +44,9 @@ export default function HomePage() {
             Diffy
           </h1>
           <p className="mt-6 max-w-xl text-lg sm:text-xl text-[var(--diffy-muted)] leading-relaxed">
-            Paste a GitHub pull request plus the live and preview URLs. Diffy
-            reads visual claims from the PR, finds them on the page, and lets
-            you step through the highlights.
+            Paste a GitHub pull request. Diffy finds the live and preview
+            URLs from the PR deploy, reads visual claims, and lets you step
+            through the highlights.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Button

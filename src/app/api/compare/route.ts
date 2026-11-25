@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { fetchPageHtml } from "@/lib/fetch-page";
 import { newRunId, saveRun } from "@/lib/run-store";
 import type { PrCompanion, ReviewChange, ReviewRun } from "@/lib/review-types";
-import { assertSafePublicUrl } from "@/lib/ssrf";
 import { clientKeyFromRequest, takeToken } from "@/lib/rate-limit";
 import {
   normalizeProtectionBypass,
@@ -12,6 +11,7 @@ import { fetchPullRequestInfo, parseGithubPrUrl } from "@/lib/github-pr";
 import { readAccessTokenFromCookie } from "@/lib/github-oauth";
 import { extractVisualClaims } from "@/lib/pr-visual-claims";
 import { locateClaimsInHtml } from "@/lib/locate-claims";
+import { resolvePrSiteUrls } from "@/lib/github-preview-urls";
 
 const COMPARE_LIMIT = 8;
 const COMPARE_WINDOW_MS = 60_000;
@@ -56,10 +56,11 @@ export async function POST(request: Request) {
   }
 
   let body: {
+    prUrl?: string;
+    pagePath?: string;
+    protectionBypass?: string;
     baseUrl?: string;
     previewUrl?: string;
-    protectionBypass?: string;
-    prUrl?: string;
   };
   try {
     body = await request.json();
@@ -67,9 +68,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const baseUrl = body.baseUrl?.trim();
-  const previewUrl = body.previewUrl?.trim();
   const prUrlRaw = body.prUrl?.trim();
+  const pagePath = body.pagePath?.trim();
 
   let protectionBypass: string | undefined;
   try {
@@ -85,29 +85,12 @@ export async function POST(request: Request) {
     );
   }
 
-  // Prefer user OAuth cookie; fall back to server GITHUB_TOKEN / GH_TOKEN.
   const githubToken =
     readAccessTokenFromCookie(request.headers.get("cookie")) || undefined;
 
-  if (!baseUrl || !previewUrl) {
-    return NextResponse.json(
-      { error: "baseUrl and previewUrl are required" },
-      { status: 400 },
-    );
-  }
   if (!prUrlRaw) {
     return NextResponse.json(
       { error: "A GitHub pull request URL is required" },
-      { status: 400 },
-    );
-  }
-
-  try {
-    assertSafePublicUrl(baseUrl);
-    assertSafePublicUrl(previewUrl);
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Invalid URL" },
       { status: 400 },
     );
   }
@@ -116,15 +99,26 @@ export async function POST(request: Request) {
   const fetchOpts = { protectionBypass };
 
   try {
-    const [[basePage, previewPage], prInfo] = await Promise.all([
-      Promise.all([
-        fetchPageHtml(baseUrl, fetchOpts),
-        fetchPageHtml(previewUrl, fetchOpts),
-      ]),
-      fetchPullRequestInfo(prUrlRaw, { token: githubToken }),
+    const prInfo = await fetchPullRequestInfo(prUrlRaw, { token: githubToken });
+    const [resolved, { claims }] = await Promise.all([
+      resolvePrSiteUrls(prInfo, {
+        token: githubToken,
+        pagePath,
+        previewUrl: body.previewUrl?.trim(),
+        baseUrl: body.baseUrl?.trim(),
+      }),
+      extractVisualClaims(prInfo),
     ]);
 
-    const { claims } = await extractVisualClaims(prInfo);
+    const previewPage = await fetchPageHtml(resolved.previewUrl, fetchOpts);
+    const basePage =
+      resolved.baseUrl === resolved.previewUrl
+        ? previewPage
+        : await fetchPageHtml(resolved.baseUrl, fetchOpts).catch(() => ({
+            html: "",
+            finalUrl: resolved.baseUrl,
+          }));
+
     const located = locateClaimsInHtml(claims, {
       afterHtml: previewPage.html,
       afterUrl: previewPage.finalUrl,
@@ -149,10 +143,6 @@ export async function POST(request: Request) {
       unlocatedCount: located.unlocatedCount,
     };
 
-    // Only route timeline images through /api/asset when a Vercel bypass
-    // secret must stay server-side. Otherwise keep absolute origin URLs so
-    // the browser loads CSS/images directly (Workers isolates don't share
-    // the in-memory run map).
     if (protectionBypass) {
       changes = rewriteChangeAssets(
         changes,
@@ -183,6 +173,8 @@ export async function POST(request: Request) {
       runId: run.id,
       changeCount: changes.length,
       unlocatedCount: pr.unlocatedCount,
+      previewUrl: previewPage.finalUrl,
+      baseUrl: basePage.finalUrl,
     });
   } catch (err) {
     const message =
@@ -191,9 +183,9 @@ export async function POST(request: Request) {
     const failed: ReviewRun = {
       id: runId,
       createdAt: new Date().toISOString(),
-      baseUrl,
-      previewUrl,
-      pageUrl: previewUrl,
+      baseUrl: body.baseUrl?.trim() || "",
+      previewUrl: body.previewUrl?.trim() || "",
+      pageUrl: body.previewUrl?.trim() || "",
       changes: [],
       status: "error",
       error: message,

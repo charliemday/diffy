@@ -28,12 +28,11 @@ function createMemoryStorage() {
 }
 
 describe("compare-form-storage", () => {
-  it("persists and restores all compare inputs", () => {
+  it("persists and restores compare inputs", () => {
     const storage = createMemoryStorage();
     const draft: CompareFormDraft = {
-      baseUrl: "https://example.com/pricing",
-      previewUrl: "https://preview.example.com/pricing",
       prUrl: "https://github.com/acme/site/pull/42",
+      pagePath: "/pricing",
       protectionBypass: "bypass-secret-123",
     };
 
@@ -41,12 +40,31 @@ describe("compare-form-storage", () => {
     assert.deepEqual(loadCompareFormDraft(storage), draft);
   });
 
+  it("migrates a v2 draft's PR URL and bypass secret", () => {
+    const storage = createMemoryStorage();
+    storage.setItem(
+      "diffy.compareForm.v2",
+      JSON.stringify({
+        baseUrl: "https://example.com",
+        previewUrl: "https://preview.example.com",
+        prUrl: "https://github.com/acme/site/pull/9",
+        protectionBypass: "secret",
+      }),
+    );
+
+    assert.deepEqual(loadCompareFormDraft(storage), {
+      prUrl: "https://github.com/acme/site/pull/9",
+      pagePath: "",
+      protectionBypass: "secret",
+    });
+  });
+
   it("removes the storage entry when all fields are cleared", () => {
     const storage = createMemoryStorage();
     writeCompareFormDraft(
       {
         ...EMPTY_COMPARE_FORM_DRAFT,
-        baseUrl: "https://example.com",
+        prUrl: "https://github.com/acme/site/pull/1",
       },
       storage,
     );
@@ -61,12 +79,11 @@ describe("compare-form-storage", () => {
     assert.deepEqual(parseCompareFormDraft("not-json"), EMPTY_COMPARE_FORM_DRAFT);
     assert.deepEqual(
       parseCompareFormDraft(
-        JSON.stringify({ baseUrl: "https://a.com", prUrl: 123 }),
+        JSON.stringify({ prUrl: "https://github.com/acme/site/pull/1", pagePath: 123 }),
       ),
       {
-        baseUrl: "https://a.com",
-        previewUrl: "",
-        prUrl: "",
+        prUrl: "https://github.com/acme/site/pull/1",
+        pagePath: "",
         protectionBypass: "",
       },
     );
@@ -86,6 +103,6 @@ describe("compare-form-storage", () => {
       parseCompareFormDraft(null),
       EMPTY_COMPARE_FORM_DRAFT,
     );
-    assert.equal(COMPARE_FORM_STORAGE_KEY, "diffy.compareForm.v2");
+    assert.equal(COMPARE_FORM_STORAGE_KEY, "diffy.compareForm.v3");
   });
 });
