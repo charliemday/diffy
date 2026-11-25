@@ -1,4 +1,4 @@
-import type { ReviewChange } from "@/lib/review-types";
+import type { PrCompanion, ReviewChange } from "@/lib/review-types";
 
 export type { ChangeKind, ChangeContent } from "@/lib/review-types";
 export type DemoChange = ReviewChange;
@@ -8,6 +8,33 @@ export const DEMO_PR = {
   branch: "marketing/spring-refresh",
   base: "main",
   pageName: "northline.co /",
+};
+
+export const DEMO_PR_COMPANION: PrCompanion = {
+  url: "https://github.com/acme/northline/pull/42",
+  owner: "acme",
+  repo: "northline",
+  number: 42,
+  title: "Northline spring landing refresh",
+  headRef: "marketing/spring-refresh",
+  baseRef: "main",
+  unlocatedCount: 0,
+  files: [
+    {
+      filename: "src/app/page.tsx",
+      status: "modified",
+      additions: 48,
+      deletions: 12,
+      isMedia: false,
+    },
+    {
+      filename: "public/hero-spring.jpg",
+      status: "added",
+      additions: 0,
+      deletions: 0,
+      isMedia: true,
+    },
+  ],
 };
 
 export const DEMO_CHANGES: DemoChange[] = [

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, GitBranch, Link2 } from "lucide-react";
-import { DEMO_CHANGES, DEMO_PR } from "@/data/demo";
+import { DEMO_CHANGES, DEMO_PR, DEMO_PR_COMPANION } from "@/data/demo";
 import type { ReviewChange, ReviewRunPublic } from "@/lib/review-types";
 import { BeforeAfter } from "@/components/diffy/before-after";
 import { ChangeTimeline } from "@/components/diffy/change-timeline";
@@ -21,7 +21,7 @@ export function ReviewWorkspace(props: Props) {
   const changes: ReviewChange[] = isDemo
     ? DEMO_CHANGES
     : props.run.changes;
-  const pr = isDemo ? null : props.run.pr;
+  const pr = isDemo ? DEMO_PR_COMPANION : props.run.pr;
   const title = isDemo
     ? DEMO_PR.title
     : pr?.title || props.run.pageTitle || "URL compare";
@@ -199,11 +199,11 @@ export function ReviewWorkspace(props: Props) {
             )}
           </div>
 
-          {pr ? <PrCompanionPanel pr={pr} /> : null}
-
           <div className="shrink-0 max-h-[42%] overflow-y-auto border-t border-[var(--diffy-line)] bg-white/50 px-4 py-3">
             <BeforeAfter change={activeChange} />
           </div>
+
+          {pr ? <PrCompanionPanel pr={pr} /> : null}
         </aside>
       </div>
     </div>
