@@ -52,9 +52,9 @@ Preview and live URLs come from GitHub **deployments** for the PR head SHA (`env
 
 ### Vercel auth-gated previews
 
-After you click **Review PR**, Diffy shows a step-by-step progress dialog. If the deploy is a Vercel preview, it pauses and asks for the project’s **Protection Bypass for Automation** secret (or you can skip if the preview is public). Diffy sends it as `x-vercel-protection-bypass` on server fetches and proxies same-host assets through `/api/asset` so the secret never appears in the iframe HTML. Without a bypass secret, stylesheet and image URLs stay pointed at the origin so the browser loads them directly.
+After you click **Review PR**, Diffy opens a full-screen progress dialog. If the deploy is a Vercel preview, it pauses and asks for the project’s **Protection Bypass for Automation** secret (or you can skip if the preview is public). Diffy sends it as `x-vercel-protection-bypass` on server fetches and proxies same-host assets through `/api/asset` so the secret never appears in the iframe HTML. Without a bypass secret, stylesheet and image URLs stay pointed at the origin so the browser loads them directly.
 
-Create the secret in Vercel → Project → Settings → Deployment Protection.
+Create the secret in Vercel → Project → Settings → Deployment Protection (the dialog links to [Vercel’s bypass docs](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation)).
 
 Works best on **SSR / static HTML**. Client-rendered shells with empty first HTML will often show no located claims.
 
