@@ -1,6 +1,6 @@
 # Diffy
 
-Visual PR review for marketing websites. Paste a **GitHub pull request**, the **base URL** (live page), and the **preview URL** (PR deploy). Diffy reads visual claims from the PR, finds them in the preview HTML, and opens a review with the page on the left and a timeline of copy, image, and layout changes on the right. Step with ↑ / ↓ to jump to each highlight.
+Visual PR review for marketing websites. Paste a **GitHub pull request**. Diffy resolves the **preview** (PR deploy) and **live** URLs from GitHub deployments, reads visual claims from the PR, finds them in the preview HTML, and opens a review with the page on the left and a timeline of copy, image, and layout changes on the right. Step with ↑ / ↓ to jump to each highlight.
 
 A hardcoded Northline demo still lives at `/review/demo` for offline walkthroughs.
 
@@ -17,15 +17,15 @@ Set `OPENAI_API_KEY` so Diffy can extract visual claims from the PR.
 
 ### Fixture pages
 
-With the dev server running, these local pages are allowed as base/preview URLs in development:
+With the dev server running, `POST /api/compare` still accepts optional `baseUrl` / `previewUrl` overrides for local fixtures:
 
 - Base: `http://127.0.0.1:3456/fixtures/base.html`
 - Preview: `http://127.0.0.1:3456/fixtures/preview.html`
 
 ## How it works
 
-1. **Home** — submit a GitHub PR URL plus base and preview URLs  
-2. **`POST /api/compare`** — load the PR files, ask the model for visual claims, fetch the preview HTML (SSRF-safe), locate those claims, stamp `data-diffy-id`, store the run (rate-limited)  
+1. **Home** — submit a GitHub PR URL (optional page path, optional Vercel bypass)  
+2. **`POST /api/compare`** — load the PR files, resolve preview/live URLs from GitHub deployments (or commit statuses / repo homepage), ask the model for visual claims, fetch the preview HTML (SSRF-safe), locate those claims, stamp `data-diffy-id`, store the run (rate-limited)  
 3. **`/review/[runId]`** — timeline + before/after panel + PR companion  
 4. **`GET /api/proxy`** — sanitized HTML of the after page in a **script-free sandboxed iframe**; the parent scrolls/highlights claims  
 
@@ -45,6 +45,8 @@ Public PRs work without auth. Private repos use **GitHub OAuth** (Connect GitHub
 Callback URL example: `https://diffy.charliemday31.workers.dev/api/auth/github/callback`  
 Local: `http://localhost:3456/api/auth/github/callback`  
 Requested scopes: `read:user`, `repo`.
+
+Preview and live URLs come from GitHub **deployments** for the PR head SHA (`environment_url`), then commit statuses (`target_url`), then the repo **homepage** for production. An optional page path is joined onto those origins (`/` by default, or inferred when the PR only changes one Next.js route).
 
 ### Vercel auth-gated previews
 

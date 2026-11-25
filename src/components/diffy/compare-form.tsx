@@ -27,7 +27,7 @@ export function CompareForm() {
     getCompareFormSnapshot,
     getCompareFormServerSnapshot,
   );
-  const { baseUrl, previewUrl, prUrl, protectionBypass } = draft;
+  const { prUrl, pagePath, protectionBypass } = draft;
   const hasInputs = !isCompareFormDraftEmpty(draft);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,10 +89,9 @@ export function CompareForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          baseUrl,
-          previewUrl,
-          protectionBypass: protectionBypass.trim() || undefined,
           prUrl: prUrl.trim(),
+          pagePath: pagePath.trim() || undefined,
+          protectionBypass: protectionBypass.trim() || undefined,
         }),
       });
       const data = (await res.json()) as {
@@ -121,8 +120,8 @@ export function CompareForm() {
             Review a pull request
           </p>
           <p className="mt-1 text-sm text-[var(--diffy-muted)]">
-            Diffy reads the PR for visual claims, finds them on the preview
-            page, and highlights each one.
+            Paste a PR URL. Diffy finds the preview from the GitHub deploy,
+            reads visual claims, and highlights each one.
           </p>
         </div>
         {hasInputs ? (
@@ -201,36 +200,26 @@ export function CompareForm() {
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-[var(--diffy-ink)]">
-            Base URL
+      <label className="block space-y-1.5">
+        <span className="text-xs font-medium text-[var(--diffy-ink)]">
+          Page path{" "}
+          <span className="font-normal text-[var(--diffy-muted)]">
+            (optional)
           </span>
-          <input
-            type="url"
-            required
-            placeholder="https://example.com/pricing"
-            value={baseUrl}
-            onChange={(e) => updateCompareFormDraft({ baseUrl: e.target.value })}
-            className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
-          />
-        </label>
-        <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-[var(--diffy-ink)]">
-            Preview URL
-          </span>
-          <input
-            type="url"
-            required
-            placeholder="https://my-app-git-branch.vercel.app/pricing"
-            value={previewUrl}
-            onChange={(e) =>
-              updateCompareFormDraft({ previewUrl: e.target.value })
-            }
-            className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
-          />
-        </label>
-      </div>
+        </span>
+        <input
+          type="text"
+          placeholder="/pricing"
+          value={pagePath}
+          onChange={(e) => updateCompareFormDraft({ pagePath: e.target.value })}
+          className="w-full rounded-lg border border-[var(--diffy-line)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--diffy-accent)] focus:ring-2 focus:ring-[var(--diffy-accent)]/20"
+        />
+        <span className="block text-xs text-[var(--diffy-muted)]">
+          Leave blank for <span className="font-mono">/</span>, or a path like{" "}
+          <span className="font-mono">/pricing</span>. If the PR only touches
+          one page route, Diffy infers it.
+        </span>
+      </label>
 
       <label className="block space-y-1.5">
         <span className="text-xs font-medium text-[var(--diffy-ink)]">

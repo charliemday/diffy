@@ -22,6 +22,7 @@ export type PullRequestInfo = {
   title: string;
   state: string;
   headRef: string;
+  headSha: string;
   baseRef: string;
   files: PrFileChange[];
 };
@@ -113,7 +114,7 @@ function webPathsFor(filename: string): string[] {
   return [...out];
 }
 
-function authHeaders(token?: string): HeadersInit {
+export function githubAuthHeaders(token?: string): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "User-Agent": "DiffyBot/0.1 (+https://diffy.app; visual-review)",
@@ -135,7 +136,7 @@ export async function fetchPullRequestInfo(
   opts: { token?: string } = {},
 ): Promise<PullRequestInfo> {
   const ref = parseGithubPrUrl(prUrl);
-  const headers = authHeaders(opts.token);
+  const headers = githubAuthHeaders(opts.token);
   const base = `https://api.github.com/repos/${ref.owner}/${ref.repo}`;
 
   const [prRes, filesRes] = await Promise.all([
@@ -171,7 +172,7 @@ export async function fetchPullRequestInfo(
     title?: string;
     state?: string;
     html_url?: string;
-    head?: { ref?: string };
+    head?: { ref?: string; sha?: string };
     base?: { ref?: string };
   };
   const filesJson = (await filesRes.json()) as Array<{
@@ -210,6 +211,7 @@ export async function fetchPullRequestInfo(
     title: pr.title || `Pull request #${ref.number}`,
     state: pr.state || "open",
     headRef: pr.head?.ref || "",
+    headSha: pr.head?.sha || "",
     baseRef: pr.base?.ref || "",
     files,
   };

@@ -14,6 +14,7 @@ const samplePr: PullRequestInfo = {
   title: "Update hero headline",
   state: "open",
   headRef: "feat/headline",
+  headSha: "abc123def456",
   baseRef: "main",
   files: [
     {
