@@ -16,5 +16,8 @@
   ],
   "images": {
     "binding": "IMAGES"
+  },
+  "vars": {
+    "OPENAI_BASE_URL": "https://helicone-light.charliemday31.workers.dev/v1"
   }
 }
