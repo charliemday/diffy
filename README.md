@@ -15,7 +15,7 @@ Open [http://localhost:3456](http://localhost:3456).
 
 Set `OPENAI_API_KEY` so Diffy can extract visual claims from the PR.
 
-To log those calls in **Pretty Radar**, also set `OPENAI_BASE_URL` and `PRETTY_RADAR_API_KEY` (see [Cloudflare env](#cloudflare-env) below). Diffy sends `Pretty-Radar-Auth` on the claims request. `OPENAI_API_KEY` stays the upstream OpenAI key (`Authorization`). Without the Radar URL/key, claims go straight to `api.openai.com` and will not show up in the Diffy workspace.
+To log those calls in **Pretty Radar**, also set `OPENAI_BASE_URL` and `PRETTY_RADAR_API_KEY` (see [Cloudflare env](#cloudflare-env) below). Diffy sends `Pretty-Radar-Auth` on the claims request. `OPENAI_API_KEY` stays the upstream OpenAI key (`Authorization`). Without the Radar URL/key, claims go straight to `api.openai.com` and will not show up in the Diffy workspace. Claim extraction waits up to 90s by default (`DIFFY_CLAIMS_TIMEOUT_MS`).
 
 ### Fixture pages
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildPrPayload,
+  claimsTimeoutMs,
   extractVisualClaims,
   openaiChatCompletionsUrl,
 } from "./pr-visual-claims";
@@ -67,6 +68,15 @@ describe("openaiChatCompletionsUrl", () => {
       }),
       "https://helicone-light.example/v1/chat/completions",
     );
+  });
+});
+
+describe("claimsTimeoutMs", () => {
+  it("defaults to 90s and clamps invalid values", () => {
+    assert.equal(claimsTimeoutMs(""), 90_000);
+    assert.equal(claimsTimeoutMs("1000"), 90_000);
+    assert.equal(claimsTimeoutMs("45000"), 45_000);
+    assert.equal(claimsTimeoutMs("999999"), 180_000);
   });
 });
 
@@ -138,6 +148,24 @@ describe("extractVisualClaims", () => {
           fetchImpl: fakeFetch,
         }),
       /429/,
+    );
+  });
+
+  it("maps abort timeouts to a clear claims error", async () => {
+    const fakeFetch: typeof fetch = async () => {
+      const err = new Error("The operation was aborted due to timeout");
+      err.name = "TimeoutError";
+      throw err;
+    };
+
+    await assert.rejects(
+      () =>
+        extractVisualClaims(samplePr, {
+          apiKey: "sk-test",
+          fetchImpl: fakeFetch,
+          baseUrl: "https://api.openai.com/v1",
+        }),
+      /timed out after \d+s/,
     );
   });
 });

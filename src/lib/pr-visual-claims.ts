@@ -19,6 +19,8 @@ const MAX_PATCH_CHARS = 16_000;
 const MAX_FILE_PATCH_CHARS = 2_500;
 const MAX_CLAIMS = 40;
 const DEFAULT_MODEL = "gpt-5.6-luna";
+/** Large marketing PRs + Pretty Radar hop often exceed 15s on gpt-5.6-luna. */
+const DEFAULT_CLAIMS_TIMEOUT_MS = 90_000;
 const DEFAULT_OPENAI_BASE = "https://api.openai.com/v1";
 const DEFAULT_PRETTY_RADAR_URL =
   "https://helicone-light.charliemday31.workers.dev";
@@ -56,6 +58,28 @@ export function buildPrPayload(pr: PullRequestInfo) {
 
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
+export function claimsTimeoutMs(raw?: string): number {
+  const parsed = Number.parseInt(
+    cleanEnv(raw ?? process.env.DIFFY_CLAIMS_TIMEOUT_MS),
+    10,
+  );
+  if (!Number.isFinite(parsed) || parsed < 5_000) {
+    return DEFAULT_CLAIMS_TIMEOUT_MS;
+  }
+  return Math.min(parsed, 180_000);
+}
+
+function isAbortError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const name = "name" in err ? String(err.name) : "";
+  const message = "message" in err ? String(err.message) : "";
+  return (
+    name === "AbortError" ||
+    name === "TimeoutError" ||
+    /aborted|timeout/i.test(message)
+  );
 }
 
 /** OpenAI-compatible chat completions URL. Pretty Radar when configured. */
@@ -156,6 +180,7 @@ export async function extractVisualClaims(
     radarUrl: opts?.radarUrl,
     radarKey,
   });
+  const timeoutMs = claimsTimeoutMs();
 
   const systemPrompt = [
     "You are Diffy, a visual PR reviewer for marketing web pages.",
@@ -170,23 +195,33 @@ export async function extractVisualClaims(
     "If there are no user-visible changes, return {\"summary\":\"...\",\"claims\":[]}.",
   ].join("\n");
 
-  const res = await fetchFn(completionsUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      ...radarAuthHeaders(radarKey),
-    },
-    body: JSON.stringify({
-      model,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: JSON.stringify({ pr: buildPrPayload(pr) }) },
-      ],
-    }),
-    signal: AbortSignal.timeout(15_000),
-  });
+  let res: Response;
+  try {
+    res = await fetchFn(completionsUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        ...radarAuthHeaders(radarKey),
+      },
+      body: JSON.stringify({
+        model,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify({ pr: buildPrPayload(pr) }) },
+        ],
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new Error(
+        `Visual claim extraction timed out after ${Math.round(timeoutMs / 1000)}s. Try again — large PRs can take longer through Pretty Radar.`,
+      );
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     throw new Error(`Visual claim extraction failed (${res.status})`);
